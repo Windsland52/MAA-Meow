@@ -64,6 +64,14 @@ class RuntimeLogCenter(
         }
     }
 
+    /** 仅写入日志文件，不在运行时 UI 中展示 */
+    fun appendToFileOnly(content: String, level: LogLevel = LogLevel.TRACE) {
+        val logItem = LogItem(content = content, level = level)
+        serialScope.launch {
+            taskLogWriter?.appendLog(logItem)
+        }
+    }
+
     fun endSession(status: String = "COMPLETED") {
         serialScope.launch {
             taskLogWriter?.endSession(status)

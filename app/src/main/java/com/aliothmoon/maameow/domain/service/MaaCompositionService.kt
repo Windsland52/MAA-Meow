@@ -207,6 +207,7 @@ class MaaCompositionService(
                 }
 
                 tasks.forEach { t ->
+                    runtimeLogCenter.appendToFileOnly("[TaskParams] ${t.type.value}: ${t.params}")
                     maa.AppendTask(t.type.value, t.params)
                 }
                 if (!maa.Start()) {
@@ -304,6 +305,7 @@ class MaaCompositionService(
                     return@useRemoteService StartResult.ConnectionError(StartResult.ConnectionError.ConnectPhase.MAA_CONNECT)
                 }
 
+                runtimeLogCenter.appendToFileOnly("[TaskParams] Copilot: $params")
                 maa.AppendTask("Copilot", params)
                 if (!maa.Start()) {
                     _state.value = MaaExecutionState.ERROR
