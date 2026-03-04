@@ -344,7 +344,6 @@ class MaaCompositionService(
                 !maa.Running() || maa.Stop() -> StopResult.Success
                 else -> StopResult.Failed
             }.also {
-                service.stopVirtualDisplay()
                 _state.value = MaaExecutionState.IDLE
                 val status = if (it is StopResult.Success) "STOPPED" else "STOP_FAILED"
                 runtimeLogCenter.append(
@@ -354,5 +353,9 @@ class MaaCompositionService(
                 runtimeLogCenter.endSession(status)
             }
         }
+    }
+
+    suspend fun stopVirtualDisplay() {
+        useRemoteService { it.stopVirtualDisplay() }
     }
 }

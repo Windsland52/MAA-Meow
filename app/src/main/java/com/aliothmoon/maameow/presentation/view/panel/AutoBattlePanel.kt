@@ -64,7 +64,6 @@ fun AutoBattlePanel(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val maaState by viewModel.maaState.collectAsStateWithLifecycle()
-    val isRunning = maaState == MaaExecutionState.RUNNING
     val isStarting = maaState == MaaExecutionState.STARTING
 
     LazyColumn(
@@ -527,27 +526,6 @@ fun AutoBattlePanel(
             }
         }
 
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = viewModel::onStart,
-                    enabled = !isRunning && !isStarting,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(if (isStarting) "启动中..." else "开始")
-                }
-                OutlinedButton(
-                    onClick = viewModel::onStop,
-                    enabled = isRunning,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("停止")
-                }
-            }
-        }
 
 
 

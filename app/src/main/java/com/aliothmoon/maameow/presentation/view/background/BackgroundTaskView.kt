@@ -80,6 +80,7 @@ import com.aliothmoon.maameow.presentation.view.panel.TaskConfigPanel
 import com.aliothmoon.maameow.presentation.view.panel.TaskListPanel
 import com.aliothmoon.maameow.presentation.view.panel.AutoBattlePanel
 import com.aliothmoon.maameow.presentation.viewmodel.BackgroundTaskViewModel
+import com.aliothmoon.maameow.presentation.viewmodel.CopilotViewModel
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.launch
@@ -91,6 +92,7 @@ import timber.log.Timber
 fun BackgroundTaskView(
     onFullscreenChanged: (Boolean) -> Unit = {},
     viewModel: BackgroundTaskViewModel = koinViewModel(),
+    copilotViewModel: CopilotViewModel = koinInject(),
     compositionService: MaaCompositionService = koinInject(),
     dispatcher: UnifiedStateDispatcher = koinInject(),
     permissionManager: PermissionManager = koinInject()
@@ -100,6 +102,7 @@ fun BackgroundTaskView(
     val maaState by compositionService.state.collectAsStateWithLifecycle()
     val permissions by permissionManager.state.collectAsStateWithLifecycle()
     var isRequestingShizuku by remember { mutableStateOf(false) }
+    var showCloseConfirm by remember { mutableStateOf(false) }
 
     val nodes by viewModel.chainState.chain.collectAsStateWithLifecycle()
     val selectedNode = nodes.find { it.id == state.selectedNodeId }
@@ -347,7 +350,7 @@ fun BackgroundTaskView(
                     }
                 }
 
-                if (state.currentTab == PanelTab.TASKS) {
+                if (state.currentTab == PanelTab.TASKS || state.currentTab == PanelTab.AUTO_BATTLE) {
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Row(
@@ -355,7 +358,13 @@ fun BackgroundTaskView(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Button(
-                            onClick = { viewModel.onStartTasks() },
+                            onClick = {
+                                when (state.currentTab) {
+                                    PanelTab.TASKS -> viewModel.onStartTasks()
+                                    PanelTab.AUTO_BATTLE -> copilotViewModel.onStart()
+                                    else -> {}
+                                }
+                            },
                             enabled = maaState != MaaExecutionState.RUNNING
                                     && maaState != MaaExecutionState.STARTING,
                             modifier = Modifier.weight(1f)
@@ -372,7 +381,13 @@ fun BackgroundTaskView(
                         }
 
                         OutlinedButton(
-                            onClick = { viewModel.onStopTasks() },
+                            onClick = {
+                                when (state.currentTab) {
+                                    PanelTab.TASKS -> viewModel.onStopTasks()
+                                    PanelTab.AUTO_BATTLE -> copilotViewModel.onStop()
+                                    else -> {}
+                                }
+                            },
                             enabled = maaState == MaaExecutionState.RUNNING,
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.outlinedButtonColors(
@@ -380,6 +395,19 @@ fun BackgroundTaskView(
                             )
                         ) {
                             Text("停止任务")
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                if (maaState == MaaExecutionState.RUNNING) {
+                                    showCloseConfirm = true
+                                } else {
+                                    coroutineScope.launch { compositionService.stopVirtualDisplay() }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("关闭应用")
                         }
                     }
                 }
@@ -477,6 +505,23 @@ fun BackgroundTaskView(
                 dialog = dialog,
                 onDismiss = viewModel::onDialogDismiss,
                 onConfirm = viewModel::onDialogConfirm
+            )
+        }
+
+        if (showCloseConfirm) {
+            AlertDialog(
+                onDismissRequest = { showCloseConfirm = false },
+                title = { Text("确认关闭", style = MaterialTheme.typography.titleMedium) },
+                text = { Text("任务正在运行中，确认关闭应用吗？", style = MaterialTheme.typography.bodyMedium) },
+                confirmButton = {
+                    Button(onClick = {
+                        showCloseConfirm = false
+                        coroutineScope.launch { compositionService.stopVirtualDisplay() }
+                    }) { Text("确认关闭") }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { showCloseConfirm = false }) { Text("取消") }
+                }
             )
         }
     }
