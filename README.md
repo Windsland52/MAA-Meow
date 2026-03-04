@@ -44,6 +44,9 @@
 
 - 运行 Sync Project with Gradle Files，Android Studio 将自行安装其他依赖，完成后运行 Assemble app Run Configuration 即可构建apk。
 
+## 问题反馈
+问题反馈 QQ 群: 1074855131
+
 ## 第三方代码
 
 本项目包含来自以下开源项目的代码：
