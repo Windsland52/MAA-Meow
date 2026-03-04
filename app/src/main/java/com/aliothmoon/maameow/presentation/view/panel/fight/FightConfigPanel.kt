@@ -26,7 +26,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aliothmoon.maameow.data.model.FightConfig
 import com.aliothmoon.maameow.data.model.StageResetMode
 import com.aliothmoon.maameow.data.resource.ActivityManager
@@ -65,10 +65,10 @@ fun FightConfigPanel(
     itemHelper: ItemHelper = koinInject()
 ) {
     // 资源收集
-    val resourceCollectionInfo by activityManager.resourceCollection.collectAsState()
+    val resourceCollectionInfo by activityManager.resourceCollection.collectAsStateWithLifecycle()
     val isResourceCollectionOpen = resourceCollectionInfo?.isOpen == true
 
-    val dropItemsList by itemHelper.dropItems.collectAsState()
+    val dropItemsList by itemHelper.dropItems.collectAsStateWithLifecycle()
     val allStageItems = remember { activityManager.getMergedStageList(filterByToday = false) }
     val stageTips = remember { activityManager.getStageTips() }
 

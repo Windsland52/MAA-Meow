@@ -6,7 +6,9 @@ import com.aliothmoon.maameow.data.model.LogItem
 import com.aliothmoon.maameow.data.model.LogLevel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,13 +19,21 @@ import kotlinx.coroutines.withContext
 class RuntimeLogCenter(
     private val taskLogWriter: TaskLogWriter?
 ) {
+    private companion object {
+        private const val LOG_FLUSH_INTERVAL_MS = 75L
+    }
+
     private val serialDispatcher = Dispatchers.IO.limitedParallelism(1)
     private val serialScope = CoroutineScope(SupervisorJob() + serialDispatcher)
 
     private val _logs = MutableStateFlow<List<LogItem>>(emptyList())
     val logs: StateFlow<List<LogItem>> = _logs.asStateFlow()
+    private val pendingLogs = ArrayDeque<LogItem>()
+    private var flushJob: Job? = null
 
     suspend fun startSession(taskNames: List<String>): Boolean = withContext(serialDispatcher) {
+        cancelScheduledFlushLocked()
+        pendingLogs.clear()
         _logs.value = emptyList()
         taskLogWriter?.startSession(taskNames) ?: true
     }
@@ -34,7 +44,8 @@ class RuntimeLogCenter(
 
     fun append(logItem: LogItem) {
         serialScope.launch {
-            appendInternal(logItem)
+            pendingLogs.addLast(logItem)
+            scheduleFlushLocked()
         }
     }
 
@@ -48,18 +59,23 @@ class RuntimeLogCenter(
 
     suspend fun appendAndWait(logItem: LogItem) {
         withContext(serialDispatcher) {
-            appendInternal(logItem)
+            flushNowLocked()
+            appendDirectLocked(logItem)
         }
     }
 
     fun clearRuntimeLogs() {
         serialScope.launch {
+            cancelScheduledFlushLocked()
+            pendingLogs.clear()
             _logs.value = emptyList()
         }
     }
 
     suspend fun clearRuntimeLogsAndWait() {
         withContext(serialDispatcher) {
+            cancelScheduledFlushLocked()
+            pendingLogs.clear()
             _logs.value = emptyList()
         }
     }
@@ -74,24 +90,63 @@ class RuntimeLogCenter(
 
     fun endSession(status: String = "COMPLETED") {
         serialScope.launch {
+            flushNowLocked()
             taskLogWriter?.endSession(status)
         }
     }
 
     suspend fun endSessionAndWait(status: String = "COMPLETED") {
         withContext(serialDispatcher) {
+            flushNowLocked()
             taskLogWriter?.endSession(status)
         }
     }
 
-    private suspend fun appendInternal(logItem: LogItem) {
-        val current = _logs.value
-        val trimmed = if (current.size >= LogConfig.MAX_LOG_COUNT) {
-            current.drop(current.size - LogConfig.MAX_LOG_COUNT + 1)
-        } else {
-            current
+    private fun scheduleFlushLocked() {
+        if (flushJob?.isActive == true) return
+        flushJob = serialScope.launch {
+            try {
+                delay(LOG_FLUSH_INTERVAL_MS)
+                flushPendingLocked()
+            } finally {
+                flushJob = null
+            }
         }
-        _logs.value = trimmed + logItem
+    }
+
+    private fun cancelScheduledFlushLocked() {
+        flushJob?.cancel()
+        flushJob = null
+    }
+
+    private suspend fun flushNowLocked() {
+        cancelScheduledFlushLocked()
+        flushPendingLocked()
+    }
+
+    private suspend fun flushPendingLocked() {
+        if (pendingLogs.isEmpty()) return
+        val batch = pendingLogs.toList()
+        pendingLogs.clear()
+        val current = _logs.value
+        val merged = if (current.isEmpty()) batch else current + batch
+        _logs.value = if (merged.size > LogConfig.MAX_LOG_COUNT) {
+            merged.takeLast(LogConfig.MAX_LOG_COUNT)
+        } else {
+            merged
+        }
+        taskLogWriter?.let { writer ->
+            batch.forEach { writer.appendLog(it) }
+        }
+    }
+
+    private suspend fun appendDirectLocked(logItem: LogItem) {
+        val current = _logs.value
+        _logs.value = if (current.size >= LogConfig.MAX_LOG_COUNT) {
+            current.drop(current.size - LogConfig.MAX_LOG_COUNT + 1) + logItem
+        } else {
+            current + logItem
+        }
         taskLogWriter?.appendLog(logItem)
     }
 }

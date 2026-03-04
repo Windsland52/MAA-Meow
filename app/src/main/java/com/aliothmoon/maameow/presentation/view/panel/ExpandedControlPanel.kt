@@ -54,7 +54,6 @@ fun ExpandedControlPanel(
     val uiState by viewModel.state.collectAsStateWithLifecycle()
     val maaState by service.state.collectAsStateWithLifecycle()
     val runMode by appSettings.runMode.collectAsStateWithLifecycle()
-    val logs by viewModel.runtimeLogs.collectAsStateWithLifecycle()
 
     val nodes by viewModel.chainState.chain.collectAsStateWithLifecycle()
     val selectedNode = nodes.find { it.id == uiState.selectedNodeId }
@@ -113,7 +112,7 @@ fun ExpandedControlPanel(
                         .fillMaxWidth()
                         .weight(1f),
                     userScrollEnabled = false,
-                    beyondViewportPageCount = PanelTab.entries.size - 1
+                    beyondViewportPageCount = 1
                 ) { page ->
                     when (page) {
                         0 -> { // PanelTab.ONE_KEY_TASKS
@@ -162,6 +161,7 @@ fun ExpandedControlPanel(
                         }
 
                         3 -> { // PanelTab.LOG
+                            val logs by viewModel.runtimeLogs.collectAsStateWithLifecycle()
                             LogPanel(
                                 logs = logs,
                                 onClearLogs = viewModel::onClearLogs,

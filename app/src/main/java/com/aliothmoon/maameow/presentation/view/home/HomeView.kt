@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -239,16 +240,22 @@ fun HomeView(
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-                    .padding(top = 16.dp, bottom = 8.dp),
+                    .weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                 // 屏幕分辨率显示
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -696,7 +703,7 @@ fun HomeView(
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Button(
                         onClick = {
                             if (uiState.isShowControlOverlay) {
@@ -759,6 +766,8 @@ fun HomeView(
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
             }
         }
 

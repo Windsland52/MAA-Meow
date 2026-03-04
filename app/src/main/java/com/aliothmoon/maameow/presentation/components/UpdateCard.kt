@@ -47,7 +47,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aliothmoon.maameow.data.model.update.UpdateCheckResult
 import com.aliothmoon.maameow.data.model.update.UpdateInfo
@@ -86,14 +86,14 @@ import dev.jeziellago.compose.markdowntext.MarkdownText
 fun UpdateCard(
     viewModel: UpdateViewModel = viewModel()
 ) {
-    val resourceUpdateState by viewModel.resourceUpdateState.collectAsState()
-    val appUpdateState by viewModel.appUpdateState.collectAsState()
-    val resIsChecking by viewModel.resourceChecking.collectAsState()
-    val appIsChecking by viewModel.appChecking.collectAsState()
-    val resourceCheckResult by viewModel.resourceCheckResult.collectAsState()
-    val appCheckResult by viewModel.appCheckResult.collectAsState()
-    val updateSource by viewModel.updateSource.collectAsState()
-    val mirrorChyanCdk by viewModel.mirrorChyanCdk.collectAsState()
+    val resourceUpdateState by viewModel.resourceUpdateState.collectAsStateWithLifecycle()
+    val appUpdateState by viewModel.appUpdateState.collectAsStateWithLifecycle()
+    val resIsChecking by viewModel.resourceChecking.collectAsStateWithLifecycle()
+    val appIsChecking by viewModel.appChecking.collectAsStateWithLifecycle()
+    val resourceCheckResult by viewModel.resourceCheckResult.collectAsStateWithLifecycle()
+    val appCheckResult by viewModel.appCheckResult.collectAsStateWithLifecycle()
+    val updateSource by viewModel.updateSource.collectAsStateWithLifecycle()
+    val mirrorChyanCdk by viewModel.mirrorChyanCdk.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     var resourceErrorMessage by remember { mutableStateOf<String?>(null) }

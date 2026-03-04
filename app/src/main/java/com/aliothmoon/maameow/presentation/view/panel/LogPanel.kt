@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,11 +57,22 @@ fun LogPanel(
 ) {
     val listState = rememberLazyListState()
     var selectedLogItem by remember { mutableStateOf<LogItem?>(null) }
+    val shouldAutoFollow by remember {
+        derivedStateOf {
+            val total = listState.layoutInfo.totalItemsCount
+            if (total == 0) {
+                true
+            } else {
+                val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+                (total - 1 - lastVisible) <= 2
+            }
+        }
+    }
 
-    // 自动滚动到底部
+    // 仅在接近底部时自动跟随，避免用户回看历史被强制拉回底部
     LaunchedEffect(logs.size) {
-        if (logs.isNotEmpty()) {
-            listState.animateScrollToItem(logs.size - 1)
+        if (logs.isNotEmpty() && shouldAutoFollow) {
+            listState.scrollToItem(logs.size - 1)
         }
     }
 

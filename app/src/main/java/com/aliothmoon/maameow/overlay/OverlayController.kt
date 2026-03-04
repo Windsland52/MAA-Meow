@@ -6,9 +6,9 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.view.ViewGroup
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
@@ -185,7 +185,7 @@ class OverlayController(
             }
             setContent {
                 CompositionLocalProvider(LocalFloatingWindowContext provides true) {
-                    val isLocked by _isLocked.collectAsState()
+                    val isLocked by _isLocked.collectAsStateWithLifecycle()
                     ExpandedControlPanel(
                         onClose = ::onCloseControlPanel,
                         onHome = { Misc.bringAppToFront(context) },
@@ -288,7 +288,7 @@ class OverlayController(
                             setViewTreeSavedStateRegistryOwner(it)
                         }
                         setContent {
-                            val runningState by compositionService.state.collectAsState()
+                            val runningState by compositionService.state.collectAsStateWithLifecycle()
                             FloatBall(
                                 onClick = ::onFloatBallClick,
                                 runningState = runningState

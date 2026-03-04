@@ -100,7 +100,6 @@ fun BackgroundTaskView(
     val coroutineScope = rememberCoroutineScope()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val maaState by compositionService.state.collectAsStateWithLifecycle()
-    val logs by viewModel.runtimeLogs.collectAsStateWithLifecycle()
     val permissions by permissionManager.state.collectAsStateWithLifecycle()
     var isRequestingShizuku by remember { mutableStateOf(false) }
 
@@ -273,7 +272,7 @@ fun BackgroundTaskView(
                         .fillMaxWidth()
                         .weight(1f),
                     userScrollEnabled = true,
-                    beyondViewportPageCount = PanelTab.entries.size - 1
+                    beyondViewportPageCount = 1
                 ) { page ->
                     when (page) {
                         0 -> {
@@ -339,6 +338,7 @@ fun BackgroundTaskView(
                         }
 
                         3 -> {
+                            val logs by viewModel.runtimeLogs.collectAsStateWithLifecycle()
                             LogPanel(
                                 logs = logs,
                                 onClearLogs = viewModel::onClearLogs,

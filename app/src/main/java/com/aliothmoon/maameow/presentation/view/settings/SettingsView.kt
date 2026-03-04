@@ -4,14 +4,14 @@ import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -126,14 +126,18 @@ fun SettingsView(
             )
         }
     ) { paddingValues ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
+                .padding(paddingValues),
+            contentPadding = PaddingValues(vertical = 8.dp)
         ) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
             // 资源管理部分
-            Spacer(modifier = Modifier.height(8.dp))
             InfoCard(
                 title = "",
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -377,6 +381,8 @@ fun SettingsView(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
         }
     }
 }
