@@ -44,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,12 +57,14 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.aliothmoon.maameow.BuildConfig
 import com.aliothmoon.maameow.constant.Routes
 import com.aliothmoon.maameow.data.datasource.ResourceDownloader
 import com.aliothmoon.maameow.data.permission.PermissionState
 import com.aliothmoon.maameow.domain.models.OverlayControlMode
 import com.aliothmoon.maameow.domain.models.RunMode
 import com.aliothmoon.maameow.domain.state.ResourceInitState
+import com.aliothmoon.maameow.data.preferences.AppSettingsManager
 import com.aliothmoon.maameow.manager.PermissionManager
 import com.aliothmoon.maameow.manager.ShizukuInstallHelper
 import com.aliothmoon.maameow.presentation.components.ResourceInitDialog
@@ -73,6 +76,7 @@ import com.aliothmoon.maameow.presentation.viewmodel.UpdateViewModel
 import com.aliothmoon.maameow.utils.Misc
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 
@@ -82,7 +86,8 @@ fun HomeView(
     navController: NavController,
     viewModel: HomeViewModel = koinViewModel(),
     updateViewModel: UpdateViewModel = koinViewModel(),
-    permissionManager: PermissionManager = koinInject()
+    permissionManager: PermissionManager = koinInject(),
+    appSettingsManager: AppSettingsManager = koinInject()
 ) {
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -338,6 +343,7 @@ fun HomeView(
         }
 
         // Shizuku/Sui 检测
+        val skipShizukuCheck by appSettingsManager.skipShizukuCheck.collectAsStateWithLifecycle()
         var shizukuStatus by remember {
             mutableStateOf(ShizukuInstallHelper.checkStatus(context))
         }
@@ -346,46 +352,87 @@ fun HomeView(
             shizukuStatus = ShizukuInstallHelper.checkStatus(context)
             onPauseOrDispose {}
         }
-        when (shizukuStatus) {
-            ShizukuInstallHelper.ShizukuStatus.NOT_INSTALLED -> {
-                AlertDialog(
-                    onDismissRequest = {},
-                    properties = DialogProperties(
-                        dismissOnBackPress = false,
-                        dismissOnClickOutside = false,
-                    ),
-                    title = { Text("未检测到 Shizuku") },
-                    text = {
-                        Text("本应用依赖 Shizuku 服务运行，检测到设备未安装 Shizuku，请先安装。")
-                    },
-                    confirmButton = {
-                        Button(
-                            onClick = { ShizukuInstallHelper.installShizuku(context) }
-                        ) {
-                            Text("安装 Shizuku")
-                        }
-                    }
-                )
-            }
-
-            ShizukuInstallHelper.ShizukuStatus.SUI_DETECTED -> {
-                if (!suiWarningDismissed) {
+        if (!skipShizukuCheck) {
+            val skipScope = rememberCoroutineScope()
+            when (shizukuStatus) {
+                ShizukuInstallHelper.ShizukuStatus.NOT_INSTALLED -> {
                     AlertDialog(
-                        onDismissRequest = { suiWarningDismissed = true },
-                        title = { Text("检测到 Sui") },
+                        onDismissRequest = {},
+                        properties = DialogProperties(
+                            dismissOnBackPress = false,
+                            dismissOnClickOutside = false,
+                        ),
+                        title = { Text("未检测到 Shizuku") },
                         text = {
-                            Text("当前使用 Sui 提供 Shizuku 服务，Sui 以 Root 权限运行，MaaMeow 可能无法正常工作，请以实际测试为主")
+                            Text("本应用依赖 Shizuku 服务运行，检测到设备未安装 Shizuku，请先安装。")
                         },
                         confirmButton = {
-                            Button(onClick = { suiWarningDismissed = true }) {
-                                Text("知道了")
+                            Button(
+                                onClick = { ShizukuInstallHelper.installShizuku(context) }
+                            ) {
+                                Text("快速安装 Shizuku")
+                            }
+                        },
+                        dismissButton = {
+                            OutlinedButton(onClick = {
+                                skipScope.launch { appSettingsManager.setSkipShizukuCheck(true) }
+                            }) {
+                                Text("跳过检查")
                             }
                         }
                     )
                 }
-            }
 
-            ShizukuInstallHelper.ShizukuStatus.INSTALLED -> {}
+                ShizukuInstallHelper.ShizukuStatus.APP_NOT_RUNNING -> {
+                    AlertDialog(
+                        onDismissRequest = {},
+                        properties = DialogProperties(
+                            dismissOnBackPress = false,
+                            dismissOnClickOutside = false,
+                        ),
+                        title = { Text("Shizuku 未启动") },
+                        text = {
+                            Text("检测到 Shizuku 已安装但服务未启动，请打开 Shizuku 应用并启动服务。")
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                runCatching {
+                                    val intent = context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+                                    if (intent != null) context.startActivity(intent)
+                                }
+                            }) {
+                                Text("打开 Shizuku")
+                            }
+                        },
+                        dismissButton = {
+                            OutlinedButton(onClick = {
+                                skipScope.launch { appSettingsManager.setSkipShizukuCheck(true) }
+                            }) {
+                                Text("跳过检查")
+                            }
+                        }
+                    )
+                }
+
+                ShizukuInstallHelper.ShizukuStatus.SUI_AVAILABLE -> {
+                    if (!suiWarningDismissed) {
+                        AlertDialog(
+                            onDismissRequest = { suiWarningDismissed = true },
+                            title = { Text("检测到 Sui") },
+                            text = {
+                                Text("当前使用 Sui 提供 Shizuku 服务，Sui 以 Root 权限运行，MaaMeow 可能无法正常工作，请以实际测试为主")
+                            },
+                            confirmButton = {
+                                Button(onClick = { suiWarningDismissed = true }) {
+                                    Text("知道了")
+                                }
+                            }
+                        )
+                    }
+                }
+
+                ShizukuInstallHelper.ShizukuStatus.READY -> {}
+            }
         }
     }
 }

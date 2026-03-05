@@ -85,8 +85,12 @@ object RemoteServiceManager {
 
     /** 服务进程异常死亡 */
     private fun handleBinderDeath() {
-        currentBinder.get()?.unlinkToDeath(deathRecipient, 0)
-        currentBinder.set(null)
+        runCatching {
+            currentBinder.get()?.unlinkToDeath(deathRecipient, 0)
+            currentBinder.set(null)
+        }.onFailure {
+            Timber.w(it, "unlinkToDeath failed")
+        }
         _state.value = ServiceState.Died
     }
 
@@ -95,8 +99,12 @@ object RemoteServiceManager {
         if (_state.value == ServiceState.Died) {
             return
         }
-        currentBinder.get()?.unlinkToDeath(deathRecipient, 0)
-        currentBinder.set(null)
+        runCatching {
+            currentBinder.get()?.unlinkToDeath(deathRecipient, 0)
+            currentBinder.set(null)
+        }.onFailure {
+            Timber.w(it, "unlinkToDeath failed")
+        }
         _state.value = ServiceState.Disconnected
     }
 

@@ -14,26 +14,32 @@ object ShizukuInstallHelper {
     private const val ASSET_NAME = "shizuku.apk"
 
     enum class ShizukuStatus {
-        INSTALLED,      // Shizuku App 已安装
-        SUI_DETECTED,   // 检测到 Sui（Magisk 模块）
-        NOT_INSTALLED   // 均未检测到
+        READY,              // Binder 可用，服务正常运行（Shizuku App 或其他兼容框架）
+        SUI_AVAILABLE,      // 通过 Sui（Magisk 模块）提供服务
+        APP_NOT_RUNNING,    // Shizuku App 已安装但服务未启动
+        NOT_INSTALLED       // 均未检测到，需要安装
     }
 
     fun checkStatus(context: Context): ShizukuStatus {
+        val isSui = try { Sui.init(context.packageName) } catch (_: Exception) { false }
+
+        if (isSui) {
+            return ShizukuStatus.SUI_AVAILABLE
+        }
+
+        if (ShizukuManager.isShizukuAvailable()) {
+            return ShizukuStatus.READY
+        }
+
         val appInstalled = try {
             context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
             true
         } catch (_: PackageManager.NameNotFoundException) {
             false
         }
-        if (appInstalled) return ShizukuStatus.INSTALLED
 
-        return try {
-            if (Sui.init(context.packageName)) ShizukuStatus.SUI_DETECTED
-            else ShizukuStatus.NOT_INSTALLED
-        } catch (_: Exception) {
-            ShizukuStatus.NOT_INSTALLED
-        }
+        return if (appInstalled) ShizukuStatus.APP_NOT_RUNNING
+        else ShizukuStatus.NOT_INSTALLED
     }
 
     fun installShizuku(context: Context): Boolean {

@@ -5,10 +5,10 @@ import android.os.Build
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.aliothmoon.maameow.RemoteService
 import com.aliothmoon.maameow.data.permission.PermissionState
 import com.aliothmoon.maameow.data.preferences.AppSettingsManager
 import com.aliothmoon.maameow.domain.models.RunMode
-import com.aliothmoon.maameow.manager.RemoteServiceManager.useRemoteService
 import com.aliothmoon.maameow.remote.PermissionGrantRequest
 import com.aliothmoon.maameow.service.AccessibilityHelperService
 import com.hjq.permissions.XXPermissions
@@ -19,13 +19,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 import kotlin.coroutines.resume
@@ -59,9 +59,10 @@ class PermissionManager(
         }
         scope.launch {
             state.map { it.shizuku }
+                .distinctUntilChanged()
                 .filter { it }
                 .collect {
-                    grantRequiredPermissions()
+                    RemoteServiceManager.bind()
                 }
         }
 
@@ -262,7 +263,7 @@ class PermissionManager(
         return granted
     }
 
-    private suspend fun grantRequiredPermissions() {
+    suspend fun grantRequiredPermissions(srv: RemoteService) {
         if (!ShizukuManager.checkPermissionGranted()) {
             Timber.w("grantAll: Shizuku permission not granted")
             return
@@ -276,18 +277,14 @@ class PermissionManager(
 
             Timber.i("grantAll: packageName=$packageName, uid=$uid, isForeground=$isForeground")
 
-            val result = withContext(Dispatchers.IO) {
-                useRemoteService { service ->
-                    service.grantPermissions(
-                        PermissionGrantRequest(
-                            packageName = packageName,
-                            uid = uid,
-                            accessibilityServiceId = if (isForeground)
-                                AccessibilityHelperService.SERVICE_ID else ""
-                        )
-                    )
-                }
-            }
+            val result = srv.grantPermissions(
+                PermissionGrantRequest(
+                    packageName = packageName,
+                    uid = uid,
+                    accessibilityServiceId = if (isForeground)
+                        AccessibilityHelperService.SERVICE_ID else ""
+                )
+            )
 
             // 仅前台模式等待无障碍服务连接
             if (isForeground && result.accessibilityPermission) {

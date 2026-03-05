@@ -73,6 +73,7 @@ class HomeViewModel(
                 resourceLoader.state,
                 compositionService.state
             ) { serviceState, resourceState, executionState ->
+                Timber.i("ServiceState collect $serviceState $resourceState $executionState")
                 when {
                     serviceState is RemoteServiceManager.ServiceState.Died ||
                             serviceState is RemoteServiceManager.ServiceState.Error ->

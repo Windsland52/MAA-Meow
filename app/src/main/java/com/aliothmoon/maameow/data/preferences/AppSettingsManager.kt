@@ -146,4 +146,19 @@ class AppSettingsManager(private val context: Context) {
             context.dataStore.edit { it[autoCheckUpdate] = enabled.toString() }
         }
     }
+
+    // 跳过 Shizuku 检查
+    val skipShizukuCheck: StateFlow<Boolean> = settings
+        .map { it.skipShizukuCheck.toBooleanStrictOrNull() ?: false }
+        .distinctUntilChanged()
+        .stateIn(
+            scope, SharingStarted.Eagerly,
+            initialSettings.skipShizukuCheck.toBooleanStrictOrNull() ?: false
+        )
+
+    suspend fun setSkipShizukuCheck(enabled: Boolean) {
+        with(AppSettingsSchema) {
+            context.dataStore.edit { it[skipShizukuCheck] = enabled.toString() }
+        }
+    }
 }

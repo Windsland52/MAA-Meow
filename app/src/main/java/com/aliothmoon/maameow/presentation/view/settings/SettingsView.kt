@@ -58,6 +58,7 @@ fun SettingsView(
     val resourceInitState by resourceInitService.state.collectAsStateWithLifecycle()
     val debugMode by viewModel.debugMode.collectAsStateWithLifecycle()
     val autoCheckUpdate by viewModel.autoCheckUpdate.collectAsStateWithLifecycle()
+    val skipShizukuCheck by viewModel.skipShizukuCheck.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
 
     var showReInitConfirm by remember { mutableStateOf(false) }
@@ -188,6 +189,14 @@ fun SettingsView(
                                 viewModel.setDebugMode(false)
                             }
                         }
+                    )
+                    SettingsDivider(tertiaryContent)
+                    SettingSwitchItem(
+                        title = "跳过 Shizuku 检查",
+                        description = "启用后启动时不再弹出 Shizuku 安装/启动提示",
+                        contentColor = tertiaryContent,
+                        checked = skipShizukuCheck,
+                        onCheckedChange = { viewModel.setSkipShizukuCheck(it) }
                     )
                 }
             }

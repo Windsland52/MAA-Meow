@@ -34,16 +34,10 @@ class UnifiedStateDispatcher(
     val serviceDiedEvent: SharedFlow<Unit> = _serviceDiedEvent.asSharedFlow()
 
     fun start() {
-        startObserving()
-        if (permissionManager.permissions.shizuku) {
-            RemoteServiceManager.bind()
-        }
-    }
-
-
-    fun startObserving() {
         scope.launch {
-            RemoteServiceManager.state.collect { state ->
+            RemoteServiceManager.state
+                .drop(1)
+                .collect { state ->
                 when (state) {
                     is RemoteServiceManager.ServiceState.Connected -> {
                         Timber.d("Service connected")
@@ -72,7 +66,6 @@ class UnifiedStateDispatcher(
             }
         }
         Timber.i("Started observing unified state")
-
         scope.launch {
             chainState.firstConfigFlow<WakeUpConfig>()
                 .map { (it ?: WakeUpConfig()).clientType }
@@ -92,6 +85,7 @@ class UnifiedStateDispatcher(
 
     suspend fun onServiceConnected(srv: RemoteService) {
         withContext(Dispatchers.IO) {
+            permissionManager.grantRequiredPermissions(srv)
             val mode = appSettingsManager.runMode.value
             srv.setVirtualDisplayMode(mode.displayMode)
             resourceLoader.load()

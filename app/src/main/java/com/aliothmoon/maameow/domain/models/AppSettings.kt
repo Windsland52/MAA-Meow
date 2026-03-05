@@ -15,5 +15,7 @@ data class AppSettings(
 
     @PrefKey(default = "false") val debugMode: String = "false",
 
-    @PrefKey(default = "true") val autoCheckUpdate: String = "true"
+    @PrefKey(default = "true") val autoCheckUpdate: String = "true",
+
+    @PrefKey(default = "false") val skipShizukuCheck: String = "false"
 )

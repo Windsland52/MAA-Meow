@@ -40,4 +40,13 @@ class SettingsViewModel(
             appSettingsManager.setAutoCheckUpdate(enabled)
         }
     }
+
+    val skipShizukuCheck: StateFlow<Boolean> = appSettingsManager.skipShizukuCheck
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun setSkipShizukuCheck(enabled: Boolean) {
+        viewModelScope.launch {
+            appSettingsManager.setSkipShizukuCheck(enabled)
+        }
+    }
 }
