@@ -128,7 +128,7 @@ fun AutoBattlePanel(
             ITextField(
                 value = state.inputText,
                 onValueChange = viewModel::onInputChanged,
-                label = "作业路径/神秘代码",
+                label = "作业站神秘代码",
                 placeholder = "输入 maa://1234、1234",
             )
         }
@@ -390,7 +390,7 @@ fun AutoBattlePanel(
                     )
                 }
 
-                if (!state.useCopilotList && state.tabIndex != 0 && state.tabIndex != 2) {
+                if (!state.useCopilotList && state.tabIndex != 2) {
                     CheckBoxWithLabel(
                         checked = state.config.loop,
                         onCheckedChange = {
