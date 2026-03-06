@@ -35,10 +35,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -65,6 +66,7 @@ import androidx.compose.runtime.movableContentOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
@@ -78,12 +80,12 @@ import com.aliothmoon.maameow.domain.service.MaaCompositionService
 import com.aliothmoon.maameow.domain.service.UnifiedStateDispatcher
 import com.aliothmoon.maameow.domain.state.MaaExecutionState
 import com.aliothmoon.maameow.manager.PermissionManager
+import com.aliothmoon.maameow.presentation.components.AdaptiveTaskPromptDialog
 import com.aliothmoon.maameow.presentation.components.PlaceholderContent
 import com.aliothmoon.maameow.presentation.components.ShizukuPermissionDialog
 import com.aliothmoon.maameow.presentation.view.panel.PanelHeader
 import com.aliothmoon.maameow.presentation.view.panel.LogPanel
 import com.aliothmoon.maameow.presentation.view.panel.PanelDialogType
-import com.aliothmoon.maameow.presentation.view.panel.PanelDialogUiState
 import com.aliothmoon.maameow.presentation.view.panel.PanelTab
 import com.aliothmoon.maameow.presentation.view.panel.TaskConfigPanel
 import com.aliothmoon.maameow.presentation.view.panel.TaskListPanel
@@ -614,81 +616,47 @@ fun BackgroundTaskView(
             }
         }
 
-        // 错误/提示 Dialog
         state.dialog?.let { dialog ->
-            TaskResultDialog(
-                dialog = dialog,
-                onDismiss = viewModel::onDialogDismiss,
-                onConfirm = viewModel::onDialogConfirm
+            val confirmColor = when (dialog.type) {
+                PanelDialogType.SUCCESS -> MaterialTheme.colorScheme.primary
+                PanelDialogType.WARNING -> MaterialTheme.colorScheme.tertiary
+                PanelDialogType.ERROR -> MaterialTheme.colorScheme.error
+            }
+            AdaptiveTaskPromptDialog(
+                visible = true,
+                title = dialog.title,
+                message = AnnotatedString(dialog.message),
+                onDismissRequest = viewModel::onDialogDismiss,
+                onConfirm = viewModel::onDialogConfirm,
+                confirmText = dialog.confirmText,
+                dismissText = dialog.dismissText,
+                icon = when (dialog.type) {
+                    PanelDialogType.SUCCESS -> Icons.Filled.CheckCircle
+                    else -> Icons.Filled.Warning
+                },
+                iconTint = confirmColor,
+                confirmColor = confirmColor,
             )
         }
 
         if (showCloseConfirm) {
-            AlertDialog(
+            AdaptiveTaskPromptDialog(
+                visible = true,
+                title = "确认关闭",
+                message = AnnotatedString("任务正在运行中，确认关闭应用吗？"),
                 onDismissRequest = { showCloseConfirm = false },
-                title = { Text("确认关闭", style = MaterialTheme.typography.titleMedium) },
-                text = {
-                    Text(
-                        "任务正在运行中，确认关闭应用吗？",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                onConfirm = {
+                    showCloseConfirm = false
+                    coroutineScope.launch { compositionService.stopVirtualDisplay() }
                 },
-                confirmButton = {
-                    Button(onClick = {
-                        showCloseConfirm = false
-                        coroutineScope.launch { compositionService.stopVirtualDisplay() }
-                    }) { Text("确认关闭") }
-                },
-                dismissButton = {
-                    OutlinedButton(onClick = { showCloseConfirm = false }) { Text("取消") }
-                }
+                confirmText = "确认关闭",
+                dismissText = "取消",
+                icon = Icons.Filled.Warning,
+                iconTint = MaterialTheme.colorScheme.error,
+                confirmColor = MaterialTheme.colorScheme.error,
             )
         }
     }
-}
-
-@Composable
-private fun TaskResultDialog(
-    dialog: PanelDialogUiState,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    val confirmColor = when (dialog.type) {
-        PanelDialogType.SUCCESS -> MaterialTheme.colorScheme.primary
-        PanelDialogType.WARNING -> MaterialTheme.colorScheme.tertiary
-        PanelDialogType.ERROR -> MaterialTheme.colorScheme.error
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = dialog.title,
-                style = MaterialTheme.typography.titleMedium
-            )
-        },
-        text = {
-            Text(
-                text = dialog.message,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = confirmColor
-                )
-            ) {
-                Text(dialog.confirmText)
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(dialog.dismissText)
-            }
-        }
-    )
 }
 
 private fun updateTextureTransform(textureView: TextureView, viewWidth: Int, viewHeight: Int) {

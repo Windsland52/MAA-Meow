@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,6 +25,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,7 +34,7 @@ import com.aliothmoon.maameow.domain.models.RunMode
 import com.aliothmoon.maameow.domain.service.MaaCompositionService
 import com.aliothmoon.maameow.domain.state.MaaExecutionState
 import com.aliothmoon.maameow.presentation.LocalFloatingWindowContext
-import com.aliothmoon.maameow.presentation.components.OverlayDialog
+import com.aliothmoon.maameow.presentation.components.AdaptiveTaskPromptDialog
 import com.aliothmoon.maameow.presentation.components.ResourceLoadingOverlay
 import com.aliothmoon.maameow.presentation.components.PlaceholderContent
 import com.aliothmoon.maameow.presentation.view.panel.PanelDialogType.ERROR
@@ -196,25 +198,25 @@ fun ExpandedControlPanel(
         }
 
         val dialog = uiState.dialog
-        OverlayDialog(
+        val confirmColor = when (dialog?.type) {
+            SUCCESS -> MaterialTheme.colorScheme.primary
+            ERROR -> MaterialTheme.colorScheme.error
+            else -> MaterialTheme.colorScheme.tertiary
+        }
+        AdaptiveTaskPromptDialog(
             visible = dialog != null,
             onDismissRequest = viewModel::onDialogDismiss,
             title = dialog?.title ?: "",
-            message = dialog?.message ?: "",
+            message = AnnotatedString(dialog?.message ?: ""),
             icon = when (dialog?.type) {
                 SUCCESS -> Icons.Filled.CheckCircle
                 else -> Icons.Filled.Warning
             },
-            iconTint = when (dialog?.type) {
-                SUCCESS -> Color(0xFF4CAF50)
-                ERROR -> Color(0xFFE53935)
-                else -> Color(0xFFFFA000)
-            },
+            iconTint = confirmColor,
+            confirmColor = confirmColor,
             confirmText = dialog?.confirmText ?: "确认",
             dismissText = dialog?.dismissText ?: "关闭",
-            onConfirm = {
-                viewModel.onDialogConfirm()
-            }
+            onConfirm = viewModel::onDialogConfirm,
         )
     }
 }

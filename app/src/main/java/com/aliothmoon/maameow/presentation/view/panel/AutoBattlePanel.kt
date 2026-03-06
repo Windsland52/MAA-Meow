@@ -1,8 +1,6 @@
 package com.aliothmoon.maameow.presentation.view.panel
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,8 +22,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -37,13 +33,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -54,9 +49,11 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aliothmoon.maameow.domain.state.MaaExecutionState
+import com.aliothmoon.maameow.presentation.components.AdaptiveTaskPromptDialog
 import com.aliothmoon.maameow.presentation.components.CheckBoxWithExpandableTip
 import com.aliothmoon.maameow.presentation.components.CheckBoxWithLabel
 import com.aliothmoon.maameow.presentation.components.ITextField
+import com.aliothmoon.maameow.presentation.components.TaskPromptButtonLayout
 import com.aliothmoon.maameow.presentation.components.tip.ExpandableTipContent
 import com.aliothmoon.maameow.presentation.components.tip.ExpandableTipIcon
 import com.aliothmoon.maameow.presentation.viewmodel.CopilotViewModel
@@ -73,6 +70,18 @@ fun AutoBattlePanel(
     val maaState by viewModel.maaState.collectAsStateWithLifecycle()
     val isStarting = maaState == MaaExecutionState.STARTING
     var showBattleListRequirementDialog by rememberSaveable { mutableStateOf(false) }
+    val battleListRequirementMessage = buildAnnotatedString {
+        append("仅")
+        withStyle(
+            SpanStyle(
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+            )
+        ) {
+            append("主线/故事集/SideStory")
+        }
+        append("支持战斗列表，请确认你输入的作业属于上述内容，不然请不要使用战斗列表")
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -591,96 +600,20 @@ fun AutoBattlePanel(
             }
         }
 
-        BattleListRequirementDialog(
+        AdaptiveTaskPromptDialog(
             visible = showBattleListRequirementDialog,
+            title = "提示",
+            message = battleListRequirementMessage,
             onDismissRequest = { showBattleListRequirementDialog = false },
             onConfirm = {
                 showBattleListRequirementDialog = false
                 viewModel.onToggleListMode(true)
-            }
+            },
+            confirmText = "确认，我使用的作业符合要求",
+            dismissText = "关闭",
+            buttonLayout = TaskPromptButtonLayout.VERTICAL,
+            maxWidth = 420.dp,
+            confirmColor = MaterialTheme.colorScheme.primary,
         )
-    }
-}
-
-@Composable
-private fun BattleListRequirementDialog(
-    visible: Boolean,
-    onDismissRequest: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    if (!visible) return
-
-    val interactionSource = remember { MutableInteractionSource() }
-    val message = buildAnnotatedString {
-        append("仅")
-        withStyle(
-            SpanStyle(
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold
-            )
-        ) {
-            append("主线/故事集/SideStory")
-        }
-        append("支持战斗列表，请确认你输入的作业属于上述内容，不然请不要使用战斗列表")
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable(
-                indication = null,
-                interactionSource = interactionSource,
-                onClick = onDismissRequest
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .clickable(
-                    indication = null,
-                    interactionSource = interactionSource,
-                    onClick = {}
-                ),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = "提示",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = onConfirm,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("确认，我使用的作业符合要求")
-                    }
-                    OutlinedButton(
-                        onClick = onDismissRequest,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("关闭")
-                    }
-                }
-            }
-        }
     }
 }
