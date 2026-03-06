@@ -97,6 +97,11 @@ class MaaCompositionService(
         scope.launch {
             unifiedStateDispatcher.serviceDiedEvent.collect {
                 _state.value = MaaExecutionState.ERROR
+                runtimeLogCenter.completeSessionAndWait(
+                    "SERVICE_DIED",
+                    "远程服务异常终止",
+                    LogLevel.ERROR
+                )
             }
         }
     }

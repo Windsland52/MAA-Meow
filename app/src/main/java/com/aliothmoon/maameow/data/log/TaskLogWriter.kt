@@ -86,7 +86,7 @@ class TaskLogWriter(private val pathConfig: MaaPathConfig) {
                 if (bufferedWriter == null) return@withContext
 
                 val logEntry = LogEntry.Log(
-                    time = logItem.id,  // 使用 id (毫秒时间戳) 作为持久化时间
+                    time = logItem.timestampMillis,
                     level = logItem.level.name,
                     content = logItem.content
                 )

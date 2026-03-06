@@ -3,6 +3,7 @@ package com.aliothmoon.maameow.data.model
 import androidx.compose.ui.graphics.Color
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicLong
 
 
@@ -15,6 +16,8 @@ data class LogItem(
     val id: Long = idGenerator.incrementAndGet(),
     /** 日志时间 */
     val time: LocalDateTime = LocalDateTime.now(),
+    /** 持久化使用的时间戳 */
+    val timestampMillis: Long = time.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
     /** 日志内容 */
     val content: String,
     /** 日志级别 */

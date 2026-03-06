@@ -70,6 +70,7 @@ class MaaCallbackDispatcher(
             "初始化失败: $what${if (why.isNotEmpty()) " ($why)" else ""}",
             LogLevel.ERROR
         )
+        runtimeLogCenter.endSession("INIT_FAILED")
     }
 
     private fun handleConnectionInfo(details: JSONObject?) {
@@ -89,6 +90,7 @@ class MaaCallbackDispatcher(
     private fun handleTaskChainError(details: JSONObject?) {
         stateHolder.reportRunState(MaaExecutionState.ERROR)
         details?.let { taskChainHandler.handle(AsstMsg.TaskChainError, it) }
+        runtimeLogCenter.endSession("TASK_ERROR")
     }
 
     private fun handleTaskChainCompleted(details: JSONObject?) {
@@ -111,6 +113,7 @@ class MaaCallbackDispatcher(
     private fun handleDestroyed(details: JSONObject?) {
         stateHolder.reportRunState(MaaExecutionState.IDLE)
         Timber.i("MaaCore 实例已销毁")
+        runtimeLogCenter.completeSession("DESTROYED", "MaaCore 实例已销毁", LogLevel.WARNING)
     }
 
     private fun handleSubTaskError(details: JSONObject?) {

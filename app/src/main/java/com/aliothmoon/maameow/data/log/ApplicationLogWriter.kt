@@ -10,7 +10,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
-import timber.log.Timber
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -25,6 +24,7 @@ class ApplicationLogWriter(
     private val isDebug = appSettings.debugMode.value
 
     companion object {
+        private const val INTERNAL_TAG = "ApplicationLogWriter"
         private const val LOG_DIR_NAME = "error_logs"
         private const val CURRENT_LOG_FILE = "error.log"
         private const val MAX_FILE_SIZE = 2 * 1024 * 1024L // 2MB
@@ -56,7 +56,6 @@ class ApplicationLogWriter(
 
     init {
         scope.launch {
-            Timber.d("Starting log writer isDebug=$isDebug")
             if (isDebug) {
                 writeAppInfoHeader()
             }
@@ -88,9 +87,12 @@ class ApplicationLogWriter(
     fun submit(priority: Int, tag: String?, message: String, throwable: Throwable?) {
         try {
             val logEntry = formatLogEntry(priority, tag, message, throwable)
-            writeChannel.trySend(logEntry)
+            val result = writeChannel.trySend(logEntry)
+            if (result.isFailure) {
+                reportInternalError("Failed to enqueue log entry", result.exceptionOrNull())
+            }
         } catch (e: Exception) {
-            Timber.tag("ApplicationLogWriter").e(e, "Failed to enqueue log entry")
+            reportInternalError("Failed to enqueue log entry", e)
         }
     }
 
@@ -105,7 +107,7 @@ class ApplicationLogWriter(
             stream.flush()
             fileSize += bytes.size
         } catch (e: Exception) {
-            Timber.tag("ApplicationLogWriter").e(e, "Failed to write error log")
+            reportInternalError("Failed to write error log", e)
             closeOutputStream()
         }
     }
@@ -194,7 +196,7 @@ class ApplicationLogWriter(
 
             currentLogFile.renameTo(File(logDir, "error.1.log"))
         } catch (e: Exception) {
-            Timber.e(e, "Failed to rotate log files")
+            reportInternalError("Failed to rotate log files", e)
         }
     }
 
@@ -205,7 +207,7 @@ class ApplicationLogWriter(
                 ?.sortedByDescending { it.lastModified() }
                 ?: emptyList()
         } catch (e: Exception) {
-            Timber.e(e, "Failed to get log files")
+            reportInternalError("Failed to get log files", e)
             emptyList()
         }
     }
@@ -221,10 +223,17 @@ class ApplicationLogWriter(
                 getLogFiles().forEach { file ->
                     file.delete()
                 }
-                Timber.i("All error log files cleaned")
             } catch (e: Exception) {
-                Timber.e(e, "Failed to cleanup error logs")
+                reportInternalError("Failed to cleanup error logs", e)
             }
+        }
+    }
+
+    private fun reportInternalError(message: String, throwable: Throwable? = null) {
+        if (throwable != null) {
+            Log.e(INTERNAL_TAG, message, throwable)
+        } else {
+            Log.e(INTERNAL_TAG, message)
         }
     }
 }

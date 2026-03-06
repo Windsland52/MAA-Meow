@@ -31,10 +31,14 @@ class RuntimeLogCenter(
     private val pendingLogs = ArrayDeque<LogItem>()
     private var flushJob: Job? = null
 
+    @Volatile
+    private var sessionActive = false
+
     suspend fun startSession(taskNames: List<String>): Boolean = withContext(serialDispatcher) {
         cancelScheduledFlushLocked()
         pendingLogs.clear()
         _logs.value = emptyList()
+        sessionActive = true
         taskLogWriter?.startSession(taskNames) ?: true
     }
 
@@ -90,15 +94,33 @@ class RuntimeLogCenter(
 
     fun endSession(status: String = "COMPLETED") {
         serialScope.launch {
-            flushNowLocked()
-            taskLogWriter?.endSession(status)
+            endSessionLocked(status)
         }
     }
 
     suspend fun endSessionAndWait(status: String = "COMPLETED") {
         withContext(serialDispatcher) {
-            flushNowLocked()
-            taskLogWriter?.endSession(status)
+            endSessionLocked(status)
+        }
+    }
+
+    fun completeSession(
+        status: String,
+        finalLog: String? = null,
+        level: LogLevel = LogLevel.ERROR
+    ) {
+        serialScope.launch {
+            completeSessionLocked(status, finalLog, level)
+        }
+    }
+
+    suspend fun completeSessionAndWait(
+        status: String,
+        finalLog: String? = null,
+        level: LogLevel = LogLevel.ERROR
+    ) {
+        withContext(serialDispatcher) {
+            completeSessionLocked(status, finalLog, level)
         }
     }
 
@@ -148,5 +170,24 @@ class RuntimeLogCenter(
             current + logItem
         }
         taskLogWriter?.appendLog(logItem)
+    }
+
+    private suspend fun completeSessionLocked(
+        status: String,
+        finalLog: String?,
+        level: LogLevel
+    ) {
+        if (!sessionActive) return
+        finalLog?.let {
+            appendDirectLocked(LogItem(content = it, level = level))
+        }
+        endSessionLocked(status)
+    }
+
+    private suspend fun endSessionLocked(status: String) {
+        if (!sessionActive) return
+        flushNowLocked()
+        taskLogWriter?.endSession(status)
+        sessionActive = false
     }
 }
