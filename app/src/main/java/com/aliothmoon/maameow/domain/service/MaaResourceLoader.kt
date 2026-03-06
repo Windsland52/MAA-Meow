@@ -8,6 +8,7 @@ import com.aliothmoon.maameow.data.preferences.TaskChainState
 import com.aliothmoon.maameow.data.resource.ActivityManager
 import com.aliothmoon.maameow.data.resource.ItemHelper
 import com.aliothmoon.maameow.data.resource.ResourceDataManager
+import com.aliothmoon.maameow.manager.LogcatServiceManager
 import com.aliothmoon.maameow.manager.RemoteServiceManager.useRemoteService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -48,6 +49,14 @@ class MaaResourceLoader(
             withContext(Dispatchers.IO) {
                 useRemoteService { remote ->
                     remote.setup(pathConfig.rootDir, appSettings.debugMode.value)
+
+                    if (appSettings.debugMode.value) {
+                        val appPid = android.os.Process.myPid()
+                        val servicePid = remote.pid()
+                        LogcatServiceManager.bind()
+                        LogcatServiceManager.startCapture(appPid, servicePid, pathConfig.rootDir)
+                    }
+
                     val maa = remote.maaCoreService
                     val isGlobal = clientType !in listOf("", "Official", "Bilibili")
 
