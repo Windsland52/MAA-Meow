@@ -68,39 +68,42 @@ fun TaskListPanel(
     onAddNode: (TaskTypeInfo) -> Unit,
     onRemoveNode: (String) -> Unit,
     onRenameNode: (String, String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showEditButton: Boolean = true,
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.width(IntrinsicSize.Max)) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp)
-                .clickable { showEditDialog = true },
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-        ) {
-            Row(
+        if (showEditButton) {
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 4.dp)
+                    .clickable { showEditDialog = true },
+                colors = CardDefaults.cardColors(containerColor = Color.White),
             ) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    "编辑任务",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        "编辑任务",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
             }
-        }
 
-        Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+        }
 
         ReorderableColumn(
             list = nodes,

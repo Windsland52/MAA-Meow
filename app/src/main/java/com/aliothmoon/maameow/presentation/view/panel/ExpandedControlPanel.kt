@@ -132,7 +132,8 @@ fun ExpandedControlPanel(
                                     onRemoveNode = viewModel::onRemoveNode,
                                     onRenameNode = viewModel::onRenameNode,
                                     modifier = Modifier
-                                        .fillMaxHeight()
+                                        .fillMaxHeight(),
+                                    showEditButton = false,
                                 )
 
                                 // 右侧配置区域

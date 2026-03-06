@@ -312,7 +312,8 @@ fun BackgroundTaskView(
                                         viewModel.onRenameNode(nodeId, newName)
                                     },
                                     modifier = Modifier
-                                        .fillMaxHeight()
+                                        .fillMaxHeight(),
+                                    showEditButton = true,
                                 )
 
                                 Spacer(modifier = Modifier.width(8.dp))
