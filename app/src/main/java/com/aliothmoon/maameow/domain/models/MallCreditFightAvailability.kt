@@ -1,0 +1,52 @@
+package com.aliothmoon.maameow.domain.models
+
+import com.aliothmoon.maameow.data.model.FightConfig
+import com.aliothmoon.maameow.data.model.TaskChainNode
+
+data class MallCreditFightAvailability(
+    val isAvailable: Boolean,
+    val blockingTaskName: String? = null,
+    val blockingTaskOrder: Int? = null,
+    val blockingStageIndex: Int? = null,
+) {
+    val warningMessage: String?
+        get() = if (isAvailable) {
+            null
+        } else {
+            "存在 ｢理智作战｣ 任务关卡列表中有 ｢当前/上次｣, ｢信用收支｣ 任务不再借助战打一把 OF-1. " +
+                "任务名: ${blockingTaskName.orEmpty()} (序号${blockingTaskOrder ?: -1}), 关卡序号 ${blockingStageIndex ?: 1}"
+        }
+}
+
+fun resolveMallCreditFightAvailability(nodes: List<TaskChainNode>): MallCreditFightAvailability {
+    val blockingAvailability = nodes
+        .asSequence()
+        .filter { it.enabled }
+        .sortedBy { it.order }
+        .firstNotNullOfOrNull { node ->
+            val fightConfig = node.config as? FightConfig ?: return@firstNotNullOfOrNull null
+            val blockingStageIndex = findBlockingStageIndex(fightConfig) ?: return@firstNotNullOfOrNull null
+            MallCreditFightAvailability(
+                isAvailable = false,
+                blockingTaskName = node.name,
+                blockingTaskOrder = node.order + 1,
+                blockingStageIndex = blockingStageIndex,
+            )
+        }
+
+    return blockingAvailability ?: MallCreditFightAvailability(isAvailable = true)
+}
+
+private fun findBlockingStageIndex(config: FightConfig): Int? {
+    if (config.getActiveStage().isNotBlank()) {
+        return null
+    }
+
+    val stageValues = listOf(config.stage1, config.stage2, config.stage3, config.stage4)
+    val firstBlankStageIndex = stageValues.indexOfFirst { it.isBlank() }
+    return if (firstBlankStageIndex >= 0) {
+        firstBlankStageIndex + 1
+    } else {
+        1
+    }
+}

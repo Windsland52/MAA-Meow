@@ -84,7 +84,7 @@ data class MallConfig(
      * MaaCore JSON: blacklist
      *
      * 默认值参see LocalizationHelper.GetString("BlacklistDefault")
-     * 注意: MaaCore 会自动添加黑名单角色（讯使、嘉维尔、坚雷）
+     * 注意: 为与 WPF 对齐，序列化时会按客户端并入固定黑名单角色
      */
     val blacklist: List<String> = listOf("碳", "家具", "加急许可"),
 
@@ -127,16 +127,31 @@ data class MallConfig(
             3 to "3",
             4 to "4"
         )
+
+        private val FIXED_BLACKLIST_BY_CLIENT = mapOf(
+            "Official" to listOf("讯使", "嘉维尔", "坚雷"),
+            "Bilibili" to listOf("讯使", "嘉维尔", "坚雷"),
+            "YoStarEN" to listOf("Courier", "Gavial", "Dur-nar"),
+            "YoStarJP" to listOf("クーリエ", "ガヴィル", "ジュナー"),
+            "YoStarKR" to listOf("쿠리어", "가비알", "듀나"),
+            "txwy" to listOf("訊使", "嘉維爾", "堅雷")
+        )
     }
 
-    override fun toTaskParams(): MaaTaskParams {
+    override fun toTaskParams(): MaaTaskParams = toTaskParams(creditFightEnabled = creditFight)
+
+    fun toTaskParams(
+        creditFightEnabled: Boolean,
+        clientType: String = WakeUpConfig().clientType,
+    ): MaaTaskParams {
+        val mergedBlacklist = mergeFixedBlacklist(clientType)
         val paramsJson = buildJsonObject {
             // 访问好友
             put("visit_friends", visitFriends)
 
             // 借助战
-            put("credit_fight", creditFight)
-            if (creditFight) {
+            put("credit_fight", creditFightEnabled)
+            if (creditFightEnabled) {
                 put("formation_index", creditFightFormation)
             }
 
@@ -145,8 +160,8 @@ data class MallConfig(
             if (buyFirst.isNotEmpty()) {
                 put("buy_first", JsonArray(buyFirst.map { JsonPrimitive(it) }))
             }
-            if (blacklist.isNotEmpty()) {
-                put("blacklist", JsonArray(blacklist.map { JsonPrimitive(it) }))
+            if (mergedBlacklist.isNotEmpty()) {
+                put("blacklist", JsonArray(mergedBlacklist.map { JsonPrimitive(it) }))
             }
 
             // 高级选项
@@ -155,5 +170,13 @@ data class MallConfig(
             put("reserve_max_credit", reserveMaxCredit)
         }
         return MaaTaskParams(MaaTaskType.MALL, paramsJson.toString())
+    }
+
+    private fun mergeFixedBlacklist(clientType: String): List<String> {
+        val fixedBlacklist = FIXED_BLACKLIST_BY_CLIENT[clientType].orEmpty()
+        return (blacklist + fixedBlacklist)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
     }
 }

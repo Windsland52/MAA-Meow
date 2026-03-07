@@ -44,11 +44,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aliothmoon.maameow.data.model.MallConfig
+import com.aliothmoon.maameow.data.preferences.TaskChainState
+import com.aliothmoon.maameow.domain.models.resolveMallCreditFightAvailability
 import com.aliothmoon.maameow.presentation.components.CheckBoxWithLabel
 import com.aliothmoon.maameow.presentation.components.tip.ExpandableTipContent
 import com.aliothmoon.maameow.presentation.components.tip.ExpandableTipIcon
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 
 @Composable
 fun MallConfigPanel(config: MallConfig, onConfigChange: (MallConfig) -> Unit) {
@@ -151,6 +155,9 @@ fun MallConfigPanel(config: MallConfig, onConfigChange: (MallConfig) -> Unit) {
 private fun BasicMallSettings(config: MallConfig, onConfigChange: (MallConfig) -> Unit) {
     var shoppingTipExpanded by remember { mutableStateOf(false) }
     var creditFightTipExpanded by remember { mutableStateOf(false) }
+    val taskChainState: TaskChainState = koinInject()
+    val chain by taskChainState.chain.collectAsStateWithLifecycle()
+    val creditFightAvailability = remember(chain) { resolveMallCreditFightAvailability(chain) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // 访问好友
@@ -209,9 +216,26 @@ private fun BasicMallSettings(config: MallConfig, onConfigChange: (MallConfig) -
             }
             ExpandableTipContent(
                 visible = creditFightTipExpanded,
-                tipText = "访问好友后借助战打一把 OF-1 赚 30 信用",
+                tipText = "访问好友后借助战打一把 OF-1 赚 30 信用。\n关卡选择为 ｢当前/上次｣ 时此功能无效。\n别传 ｢火蓝之心｣ 关卡OF-1未解锁时请勿勾选。",
+
                 modifier = Modifier.padding(start = 28.dp)
             )
+        }
+
+        if (config.creditFight && !creditFightAvailability.isAvailable) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFFFFF3E0),
+                shape = RoundedCornerShape(4.dp)
+            ) {
+                Text(
+                    text = creditFightAvailability.warningMessage
+                        ?: "当前存在无法解析有效关卡的理智作战任务，本次不会借助战打一把 OF-1。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFF57C00),
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
         }
 
         // 借助战编队选择
@@ -239,7 +263,6 @@ private fun BasicMallSettings(config: MallConfig, onConfigChange: (MallConfig) -
 @Composable
 private fun FormationSelector(selectedFormation: Int, onFormationChange: (Int) -> Unit) {
     Column(
-        modifier = Modifier.padding(start = 28.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text("使用编队", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
@@ -503,8 +526,3 @@ private fun BlacklistSection(config: MallConfig, onConfigChange: (MallConfig) ->
         }
     }
 }
-
-
-
-
-
