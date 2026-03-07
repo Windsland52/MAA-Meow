@@ -1,5 +1,6 @@
 package com.aliothmoon.maameow.presentation.view.panel
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,31 +36,36 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aliothmoon.maameow.domain.state.MaaExecutionState
-import com.aliothmoon.maameow.presentation.components.AdaptiveTaskPromptDialog
 import com.aliothmoon.maameow.presentation.components.CheckBoxWithExpandableTip
 import com.aliothmoon.maameow.presentation.components.CheckBoxWithLabel
 import com.aliothmoon.maameow.presentation.components.ITextField
-import com.aliothmoon.maameow.presentation.components.TaskPromptButtonLayout
 import com.aliothmoon.maameow.presentation.components.tip.ExpandableTipContent
 import com.aliothmoon.maameow.presentation.components.tip.ExpandableTipIcon
 import com.aliothmoon.maameow.presentation.viewmodel.CopilotViewModel
 import org.koin.compose.koinInject
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+
+private data class CopilotTabUiSpec(
+    val index: Int,
+    val title: String,
+    val subtitle: String? = null,
+    val fullLabel: String,
+    val helperText: String,
+    val capabilities: List<String>,
+    val supportsBattleList: Boolean,
+    val supportsSetImport: Boolean,
+    val supportsRegularOptions: Boolean,
+)
 
 @Composable
 fun AutoBattlePanel(
@@ -69,19 +75,56 @@ fun AutoBattlePanel(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val maaState by viewModel.maaState.collectAsStateWithLifecycle()
     val isStarting = maaState == MaaExecutionState.STARTING
-    var showBattleListRequirementDialog by rememberSaveable { mutableStateOf(false) }
-    val battleListRequirementMessage = buildAnnotatedString {
-        append("仅")
-        withStyle(
-            SpanStyle(
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
+    val tabSpecs = remember {
+        listOf(
+            CopilotTabUiSpec(
+                index = 0,
+                title = "主线/故事集",
+                subtitle = "SideStory",
+                fullLabel = "主线/故事集/SideStory",
+                helperText = "支持单作业、作业集、战斗列表与常规 Copilot 配置，适合主线、故事集和 SideStory。",
+                capabilities = listOf("单作业", "作业集", "战斗列表", "自动编队"),
+                supportsBattleList = true,
+                supportsSetImport = true,
+                supportsRegularOptions = true,
+            ),
+            CopilotTabUiSpec(
+                index = 1,
+                title = "保全派驻",
+                fullLabel = "保全派驻",
+                helperText = "使用 resource/copilot 内置作业，建议先手动编队后启动。支持循环次数，不支持作业集和战斗列表。",
+                capabilities = listOf("单作业", "循环次数", "内置作业"),
+                supportsBattleList = false,
+                supportsSetImport = false,
+                supportsRegularOptions = false,
+            ),
+            CopilotTabUiSpec(
+                index = 2,
+                title = "悖论模拟",
+                fullLabel = "悖论模拟",
+                helperText = "适合悖论模拟单作业或战斗列表，请从技能选择或干员列表界面启动。不支持作业集导入和常规编队配置。",
+                capabilities = listOf("单作业", "战斗列表"),
+                supportsBattleList = true,
+                supportsSetImport = true,
+                supportsRegularOptions = false,
+            ),
+            CopilotTabUiSpec(
+                index = 3,
+                title = "其他活动",
+                fullLabel = "其他活动",
+                helperText = "用于主线/故事集/SideStory 以外的活动单作业。支持常规 Copilot 配置，不支持作业集和战斗列表。",
+                capabilities = listOf("单作业", "自动编队", "借助战"),
+                supportsBattleList = false,
+                supportsSetImport = false,
+                supportsRegularOptions = true,
             )
-        ) {
-            append("主线/故事集/SideStory")
-        }
-        append("支持战斗列表，请确认你输入的作业属于上述内容，不然请不要使用战斗列表")
+        )
     }
+    val selectedTabSpec = tabSpecs.firstOrNull { it.index == state.tabIndex } ?: tabSpecs.first()
+    val regularCopilotTab = selectedTabSpec.supportsRegularOptions
+    val battleListSupportedTab = selectedTabSpec.supportsBattleList
+    val setImportSupported = selectedTabSpec.supportsSetImport
+
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -91,55 +134,76 @@ fun AutoBattlePanel(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
         item {
-            val tabs = listOf(
-                "主线/活动",
-                "保全派驻",
-                "悖论模拟"
-            ).mapIndexed { index, title -> index to title }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                tabs.forEach { (index, title) ->
-                    val selected = state.tabIndex == index
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 36.dp)
-                            .clickable { viewModel.onTabChanged(index) }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                tabSpecs.chunked(2).forEach { rowSpecs ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 36.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (selected) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
+                        rowSpecs.forEach { spec ->
+                            val selected = state.tabIndex == spec.index
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (selected) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                },
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = if (selected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.outlineVariant
+                                    }
+                                ),
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 6.dp)
-                            )
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp)
+                                    .clickable { viewModel.onTabChanged(spec.index) }
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = spec.title,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (selected) {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        },
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    spec.subtitle?.let { subtitle ->
+                                        Text(
+                                            text = subtitle,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (selected) {
+                                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            },
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        if (rowSpecs.size < 2) {
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 }
+                HorizontalDivider()
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            HorizontalDivider()
         }
 
         item {
@@ -190,7 +254,7 @@ fun AutoBattlePanel(
                 }
                 Button(
                     onClick = viewModel::onParseSetInput,
-                    enabled = !state.isLoading && !isStarting && state.tabIndex != 1,
+                    enabled = !state.isLoading && !isStarting && setImportSupported,
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
@@ -273,7 +337,7 @@ fun AutoBattlePanel(
         }
 
         item {
-            val formationVisible = state.tabIndex == 0
+            val formationVisible = regularCopilotTab
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (formationVisible) {
                     CheckBoxWithExpandableTip(
@@ -382,20 +446,10 @@ fun AutoBattlePanel(
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (state.tabIndex != 1) {
+                    if (battleListSupportedTab) {
                         CheckBoxWithExpandableTip(
                             checked = state.useCopilotList,
-                            onCheckedChange = { enabled ->
-                                val shouldConfirmMainBattleList = enabled &&
-                                    !state.useCopilotList &&
-                                    state.tabIndex == 0
-                                if (shouldConfirmMainBattleList) {
-                                    showBattleListRequirementDialog = true
-                                } else {
-                                    viewModel.onToggleListMode(enabled)
-                                }
-                            },
-                            enabled = state.tabIndex == 0 || state.tabIndex == 2,
+                            onCheckedChange = viewModel::onToggleListMode,
                             label = "战斗列表",
                             tipText = """
 仅支持以下模式:
@@ -452,7 +506,7 @@ fun AutoBattlePanel(
         
 
         item {
-            if (state.useCopilotList && (state.tabIndex == 0 || state.tabIndex == 2)) {
+            if (state.useCopilotList && battleListSupportedTab) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -583,12 +637,13 @@ fun AutoBattlePanel(
 2. 主线、故事集、SideStory: 请在关卡界面的右下角存在 ｢开始行动｣ 按钮界面启动。
 3. 保全派驻: resource/copilot 文件夹内置多份作业。请先手动编队，在右下角存在 ｢开始部署｣ 按钮界面启动，可配合 ｢循环次数｣。
 4. 悖论模拟: 选好技能后，在技能选择界面存在 ｢开始模拟｣ 按钮界面启动，1/2 星干员（无技能）在右下角存在 ｢开始模拟｣ 按钮界面开始。若使用 ｢战斗列表｣，请从干员列表 ｢等级/稀有度｣ 筛选下启动。
-5. 使用好友助战时，请关闭 ｢自动编队｣ 和 ｢战斗列表｣，手动选择干员后，在编队界面右下角存在 ｢开始行动｣ 按钮界面启动。
-6. 干员若被标记为 ｢特别关注｣，可能影响 ｢自动编队｣ 的识别与选择。建议使用 ｢自动编队｣ 时移除关注，或在报错后关闭 ｢自动编队｣，根据提示手动补充缺失的干员。
-7. Copilot 作业站的神秘代码可在输入框输入后读取：
+5. 其他活动: 仅支持单作业与常规 Copilot 配置，请在目标活动关卡界面直接启动，不支持作业集和战斗列表。
+6. 使用好友助战时，请关闭 ｢自动编队｣ 和 ｢战斗列表｣，手动选择干员后，在编队界面右下角存在 ｢开始行动｣ 按钮界面启动。
+7. 干员若被标记为 ｢特别关注｣，可能影响 ｢自动编队｣ 的识别与选择。建议使用 ｢自动编队｣ 时移除关注，或在报错后关闭 ｢自动编队｣，根据提示手动补充缺失的干员。
+8. Copilot 作业站的神秘代码可在输入框输入后读取：
 ● 点击「读取作业」= 读取单作业。
-● 点击「读取作业集」= 导入作业集。
-8. 战斗列表:
+● 点击「读取作业集」= 导入作业集（仅主线/故事集/SideStory、悖论模拟）。
+9. 战斗列表:
 ● 选择作业后，检查下方关卡名是否正确 (例: CV-EX-1)。
 ● 可通过「添加普通/添加突袭」按钮添加任务（突袭仅主线）。
 ● 可通过「清空列表/清除未勾选」按钮快速整理任务。
@@ -600,20 +655,5 @@ fun AutoBattlePanel(
             }
         }
 
-        AdaptiveTaskPromptDialog(
-            visible = showBattleListRequirementDialog,
-            title = "提示",
-            message = battleListRequirementMessage,
-            onDismissRequest = { showBattleListRequirementDialog = false },
-            onConfirm = {
-                showBattleListRequirementDialog = false
-                viewModel.onToggleListMode(true)
-            },
-            confirmText = "确认，我使用的作业符合要求",
-            dismissText = "关闭",
-            buttonLayout = TaskPromptButtonLayout.VERTICAL,
-            maxWidth = 420.dp,
-            confirmColor = MaterialTheme.colorScheme.primary,
-        )
     }
 }
