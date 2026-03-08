@@ -14,11 +14,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
 import timber.log.Timber
 import java.util.UUID
 
@@ -36,16 +39,17 @@ class TaskChainState(private val context: Context) {
 
     private val defaultChain: List<TaskChainNode> by lazy { buildDefaultChain() }
 
-    val chain: StateFlow<List<TaskChainNode>> =
-        context.store.data
-            .map { prefs -> decodeChain(prefs[CHAIN_KEY]) }
-            .stateIn(scope, SharingStarted.Eagerly, defaultChain)
+    private val _chain = MutableStateFlow(defaultChain)
+    val chain: StateFlow<List<TaskChainNode>> = _chain.asStateFlow()
 
-    suspend fun setChain(nodes: List<TaskChainNode>) {
-        context.store.edit { prefs ->
-            prefs[CHAIN_KEY] = json.encodeToString(nodes)
+    init {
+        // 从 DataStore 加载持久化数据（仅一次），覆盖默认值
+        scope.launch {
+            val prefs = context.store.data.first()
+            _chain.value = decodeChain(prefs[CHAIN_KEY])
         }
     }
+
 
     suspend fun addNode(typeInfo: TaskTypeInfo, afterIndex: Int = -1) {
         updateChain { current ->
@@ -129,11 +133,13 @@ class TaskChainState(private val context: Context) {
     private suspend inline fun updateChain(
         crossinline block: (MutableList<TaskChainNode>) -> Unit
     ) {
-        context.store.edit { prefs ->
-            val current = decodeChain(prefs[CHAIN_KEY]).toMutableList()
-            block(current)
-            reindex(current)
-            prefs[CHAIN_KEY] = json.encodeToString<List<TaskChainNode>>(current)
+        val current = _chain.value.toMutableList()
+        block(current)
+        reindex(current)
+        val snapshot = current.toList()
+        _chain.value = snapshot              // 同步更新，立即可见
+        context.store.edit { prefs ->        // 异步持久化
+            prefs[CHAIN_KEY] = json.encodeToString<List<TaskChainNode>>(snapshot)
         }
     }
 

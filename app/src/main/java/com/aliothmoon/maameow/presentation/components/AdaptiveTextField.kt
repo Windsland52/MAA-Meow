@@ -2,7 +2,11 @@ package com.aliothmoon.maameow.presentation.components
 
 import android.text.InputType
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -12,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.ImeAction
 import com.aliothmoon.maameow.presentation.LocalFloatingWindowContext
 
 
@@ -78,6 +83,8 @@ fun ITextField(
             hint = placeholder,
             singleLine = singleLine,
             enabled = enabled,
+            outlineColor = outlineColor ?: MaterialTheme.colorScheme.outline,
+            onImeAction = onImeAction,
             inputType = if (singleLine) InputType.TYPE_CLASS_TEXT else
                 InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         )
@@ -91,7 +98,24 @@ fun ITextField(
             placeholder = { Text(placeholder) },
             singleLine = singleLine,
             enabled = enabled,
-            supportingText = supportingText
+            supportingText = supportingText,
+            colors = if (outlineColor != null) {
+                OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = outlineColor
+                )
+            } else {
+                OutlinedTextFieldDefaults.colors()
+            },
+            keyboardOptions = if (onImeAction != null) {
+                KeyboardOptions(imeAction = ImeAction.Done)
+            } else {
+                KeyboardOptions.Default
+            },
+            keyboardActions = if (onImeAction != null) {
+                KeyboardActions(onDone = { onImeAction() })
+            } else {
+                KeyboardActions.Default
+            }
         )
     }
 }

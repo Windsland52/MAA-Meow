@@ -25,6 +25,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -60,6 +61,7 @@ fun ExpandedControlPanel(
 
     val nodes by viewModel.chainState.chain.collectAsStateWithLifecycle()
     val selectedNode = nodes.find { it.id == uiState.selectedNodeId }
+    val focusManager = LocalFocusManager.current
 
     val pagerState = rememberPagerState(
         initialPage = uiState.currentTab.ordinal,
@@ -185,6 +187,7 @@ fun ExpandedControlPanel(
                     BottomButtons(
                         onClose = { onClose() },
                         onStart = {
+                            focusManager.clearFocus()
                             viewModel.onStartTasks()
                         },
                         isStarting = maaState == MaaExecutionState.STARTING

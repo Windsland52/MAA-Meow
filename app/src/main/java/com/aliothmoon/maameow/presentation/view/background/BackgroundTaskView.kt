@@ -95,6 +95,7 @@ import com.aliothmoon.maameow.presentation.viewmodel.CopilotViewModel
 import com.aliothmoon.maameow.data.preferences.AppSettingsManager
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -369,6 +370,7 @@ fun BackgroundTaskView(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     var showMoreActions by remember { mutableStateOf(false) }
+                    val focusManager = LocalFocusManager.current
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -377,6 +379,7 @@ fun BackgroundTaskView(
                     ) {
                         Button(
                             onClick = {
+                                focusManager.clearFocus()
                                 when (state.currentTab) {
                                     PanelTab.TASKS -> viewModel.onStartTasks()
                                     PanelTab.AUTO_BATTLE -> copilotViewModel.onStart()
