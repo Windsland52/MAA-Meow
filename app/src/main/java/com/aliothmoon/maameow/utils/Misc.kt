@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.Process
 import android.util.DisplayMetrics
 import android.view.WindowManager
-import com.aliothmoon.maameow.constant.DefaultDisplayConfig
 import kotlin.system.exitProcess
 
 object Misc {
@@ -41,7 +40,7 @@ object Misc {
 
     fun calculate16x9Resolution(physicalWidth: Int, physicalHeight: Int): Pair<Int, Int> {
         require(physicalWidth > 0 && physicalHeight > 0) {
-            "Physical dimensions must be positive"
+            "物理尺寸必须为正数"
         }
 
         // 16:9 的最小单位
@@ -53,8 +52,8 @@ object Misc {
         val maxW = if (isLandscape) physicalWidth else physicalHeight
         val maxH = if (isLandscape) physicalHeight else physicalWidth
 
-        require(maxW >= DefaultDisplayConfig.WIDTH && maxH >= DefaultDisplayConfig.HEIGHT) {
-            "Screen size ${maxW}x${maxH} is smaller than minimum ${DefaultDisplayConfig.WIDTH}x${DefaultDisplayConfig.HEIGHT}"
+        require(maxW >= 1280 && maxH >= 720) {
+            "屏幕尺寸 ${maxW}x${maxH} 小于最低要求 1280x720"
         }
 
         val scaleByWidth = maxW / unitW

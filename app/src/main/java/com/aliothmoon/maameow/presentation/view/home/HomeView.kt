@@ -603,6 +603,7 @@ private fun PermissionRow(
     onClick: () -> Unit,
     isLoading: Boolean = false,
     grantedText: String = "已授权",
+    ungrantedText: String = "请求权限",
     contentColor: Color
 ) {
     Row(
@@ -628,7 +629,7 @@ private fun PermissionRow(
                     strokeWidth = 2.dp
                 )
             } else {
-                Text(text = if (granted) grantedText else "请求权限")
+                Text(text = if (granted) grantedText else ungrantedText)
             }
         }
     }
@@ -722,6 +723,7 @@ private fun PermissionCard(
                         title = "无障碍权限",
                         granted = permissionState.accessibility,
                         onClick = onRequestAccessibility,
+                        ungrantedText = if (permissionState.shizuku) "快捷授权" else "请求权限",
                         contentColor = contentColor
                     )
                     PermissionRow(

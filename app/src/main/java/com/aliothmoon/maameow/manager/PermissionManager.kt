@@ -10,6 +10,7 @@ import com.aliothmoon.maameow.data.permission.PermissionState
 import com.aliothmoon.maameow.data.preferences.AppSettingsManager
 import com.aliothmoon.maameow.domain.models.RunMode
 import com.aliothmoon.maameow.remote.PermissionGrantRequest
+import com.aliothmoon.maameow.remote.PermissionGrantRequest.Companion.PERM_ACCESSIBILITY
 import com.aliothmoon.maameow.service.AccessibilityHelperService
 import com.hjq.permissions.XXPermissions
 import com.hjq.permissions.permission.PermissionLists
@@ -261,6 +262,34 @@ class PermissionManager(
 
         _state.update { it.copy(accessibility = granted) }
         return granted
+    }
+
+    suspend fun quickGrantAccessibility(): Boolean {
+        if (!ShizukuManager.checkPermissionGranted()) return false
+        return try {
+            val result = RemoteServiceManager.useRemoteService { srv ->
+                srv.grantPermissions(
+                    PermissionGrantRequest(
+                        packageName = context.packageName,
+                        uid = context.applicationInfo.uid,
+                        accessibilityServiceId = AccessibilityHelperService.SERVICE_ID,
+                        permissions = PERM_ACCESSIBILITY
+                    )
+                )
+            }
+            if (result.accessibilityPermission) {
+                withTimeoutOrNull(3000L) {
+                    AccessibilityHelperService.isConnected
+                        .filter { it }
+                        .first()
+                }
+                refresh()
+            }
+            result.accessibilityPermission
+        } catch (e: Exception) {
+            Timber.e(e, "quickGrantAccessibility failed")
+            false
+        }
     }
 
     suspend fun grantRequiredPermissions(srv: RemoteService) {

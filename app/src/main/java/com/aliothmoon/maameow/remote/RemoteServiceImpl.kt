@@ -144,20 +144,20 @@ class RemoteServiceImpl : RemoteService.Stub() {
     override fun grantPermissions(request: PermissionGrantRequest): PermissionStateInfo {
         val packageName = request.packageName
         val uid = request.uid
+        val p = request.permissions
 
         with(PermissionGrantHelper) {
-            val accessibilityPermission = grantAccessibilityService(request.accessibilityServiceId)
-            val floatingWindowPermission = grantFloatingWindowPermission(packageName, uid)
-            val notificationPermission = grantNotificationPermission(packageName, uid)
-            val batteryOptimizationExempt = grantBatteryOptimizationExemption(packageName)
-            val storagePermission = grantStoragePermission(packageName, uid)
-
             return PermissionStateInfo(
-                floatingWindowPermission = floatingWindowPermission,
-                storagePermission = storagePermission,
-                batteryOptimizationExempt = batteryOptimizationExempt,
-                accessibilityPermission = accessibilityPermission,
-                notificationPermission = notificationPermission
+                accessibilityPermission = if (p and PermissionGrantRequest.PERM_ACCESSIBILITY != 0)
+                    grantAccessibilityService(request.accessibilityServiceId) else false,
+                floatingWindowPermission = if (p and PermissionGrantRequest.PERM_FLOATING_WINDOW != 0)
+                    grantFloatingWindowPermission(packageName, uid) else false,
+                notificationPermission = if (p and PermissionGrantRequest.PERM_NOTIFICATION != 0)
+                    grantNotificationPermission(packageName, uid) else false,
+                batteryOptimizationExempt = if (p and PermissionGrantRequest.PERM_BATTERY != 0)
+                    grantBatteryOptimizationExemption(packageName) else false,
+                storagePermission = if (p and PermissionGrantRequest.PERM_STORAGE != 0)
+                    grantStoragePermission(packageName, uid) else false,
             )
         }
     }

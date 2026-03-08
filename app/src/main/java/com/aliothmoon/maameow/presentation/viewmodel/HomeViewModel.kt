@@ -211,6 +211,10 @@ class HomeViewModel(
 
     fun onRequestAccessibility(context: Context) {
         viewModelScope.launch {
+            if (permissionManager.permissions.shizuku) {
+                val success = permissionManager.quickGrantAccessibility()
+                if (success) return@launch
+            }
             permissionManager.requestAccessibility(context)
         }
     }
