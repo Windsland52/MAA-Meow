@@ -4,6 +4,7 @@ import com.aliothmoon.maameow.RemoteService
 import com.aliothmoon.maameow.data.preferences.AppSettingsManager
 import com.aliothmoon.maameow.data.model.WakeUpConfig
 import com.aliothmoon.maameow.data.preferences.TaskChainState
+import com.aliothmoon.maameow.domain.state.ResourceInitState
 import com.aliothmoon.maameow.manager.PermissionManager
 import com.aliothmoon.maameow.manager.RemoteServiceManager
 import kotlinx.coroutines.CoroutineScope
@@ -13,6 +14,7 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
@@ -26,6 +28,7 @@ class UnifiedStateDispatcher(
     private val resourceLoader: MaaResourceLoader,
     private val permissionManager: PermissionManager,
     private val chainState: TaskChainState,
+    private val resourceInitService: ResourceInitService,
 ) {
     private val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -38,34 +41,57 @@ class UnifiedStateDispatcher(
             RemoteServiceManager.state
                 .drop(1)
                 .collect { state ->
-                when (state) {
-                    is RemoteServiceManager.ServiceState.Connected -> {
-                        Timber.d("Service connected")
-                        onServiceConnected(state.service)
-                    }
+                    when (state) {
+                        is RemoteServiceManager.ServiceState.Connected -> {
+                            Timber.d("Service connected")
+                            onServiceConnected(state.service)
+                        }
 
-                    is RemoteServiceManager.ServiceState.Died -> {
-                        Timber.e("Service died unexpectedly")
-                        onServiceDied()
-                    }
+                        is RemoteServiceManager.ServiceState.Died -> {
+                            Timber.e("Service died unexpectedly")
+                            onServiceDied()
+                        }
 
-                    is RemoteServiceManager.ServiceState.Error -> {
-                        Timber.e(state.exception, "Service error")
-                        onServiceError(state.exception)
-                    }
+                        is RemoteServiceManager.ServiceState.Error -> {
+                            Timber.e(state.exception, "Service error")
+                            onServiceError(state.exception)
+                        }
 
-                    is RemoteServiceManager.ServiceState.Connecting -> {
-                        Timber.d("Service connecting")
-                    }
+                        is RemoteServiceManager.ServiceState.Connecting -> {
+                            Timber.d("Service connecting")
+                        }
 
-                    is RemoteServiceManager.ServiceState.Disconnected -> {
-                        Timber.d("Service disconnected")
-                        onServiceDisconnected()
+                        is RemoteServiceManager.ServiceState.Disconnected -> {
+                            Timber.d("Service disconnected")
+                            onServiceDisconnected()
+                        }
                     }
                 }
-            }
         }
         Timber.i("Started observing unified state")
+
+        // 服务已连接 + 资源已初始化 → 触发资源加载
+        scope.launch {
+            combine(
+                RemoteServiceManager.state,
+                resourceInitService.state
+            ) { serviceState, initState ->
+                serviceState to initState
+            }
+                .distinctUntilChanged()
+                .collect { (serviceState, initState) ->
+                    if (serviceState is RemoteServiceManager.ServiceState.Connected
+                        && initState is ResourceInitState.Ready
+                        && resourceLoader.state.value is MaaResourceLoader.State.NotLoaded
+                    ) {
+                        Timber.i("Service connected and resource initialized, loading resources")
+                        withContext(Dispatchers.IO) {
+                            resourceLoader.load()
+                        }
+                    }
+                }
+        }
+
         scope.launch {
             chainState.firstConfigFlow<WakeUpConfig>()
                 .map { (it ?: WakeUpConfig()).clientType }
@@ -88,7 +114,6 @@ class UnifiedStateDispatcher(
             permissionManager.grantRequiredPermissions(srv)
             val mode = appSettingsManager.runMode.value
             srv.setVirtualDisplayMode(mode.displayMode)
-            resourceLoader.load()
         }
     }
 
