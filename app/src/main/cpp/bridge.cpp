@@ -12,6 +12,7 @@
 #include <chrono>
 #include <atomic>
 #include <cstdint>
+#include <mutex>
 
 #define LOG_TAG "LibBridge"
 
@@ -35,10 +36,18 @@ static void nativeReleaseFrameBuffers(JNIEnv *env, jclass clazz);
 
 static jobject nativeGetFrameBufferBitmap(JNIEnv *env, jclass clazz);
 
+#include <android/native_window.h>
+#include <android/native_window_jni.h>
+
+static std::atomic<ANativeWindow *> g_previewWindow{nullptr};
+
+static void nativeSetPreviewSurface(JNIEnv *env, jclass clazz, jobject jSurface);
+
 static JNINativeMethod gMethods[] = {
         {"ping",                        "()Ljava/lang/String;",                 (void *) ping},
         {"initFrameBuffers",            "(II)V",                                (void *) nativeInitFrameBuffers},
         {"copyFrameFromHardwareBuffer", "(Landroid/hardware/HardwareBuffer;)J", (void *) nativeCopyFrameFromHardwareBuffer},
+        {"setPreviewSurface",           "(Ljava/lang/Object;)V",                (void *) nativeSetPreviewSurface},
         {"releaseFrameBuffers",         "()V",                                  (void *) nativeReleaseFrameBuffers},
         {"getFrameBufferBitmap",        "()Landroid/graphics/Bitmap;",          (void *) nativeGetFrameBufferBitmap},
 };
@@ -135,6 +144,12 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
             LOGI("Cleaned up DriverClass global reference");
         }
     }
+
+    ANativeWindow *window = g_previewWindow.exchange(nullptr);
+    if (window) {
+        ANativeWindow_release(window);
+    }
+
     g_touch_down_method = nullptr;
     g_touch_move_method = nullptr;
     g_touch_up_method = nullptr;
@@ -509,6 +524,58 @@ static FrameBuffer *AcquireWriteBuffer() {
     return nullptr;
 }
 
+static void nativeSetPreviewSurface(JNIEnv *env, jclass clazz, jobject jSurface) {
+    ANativeWindow *newWindow = nullptr;
+    if (jSurface) {
+        newWindow = ANativeWindow_fromSurface(env, jSurface);
+        if (newWindow) {
+            LOGI("Set new preview window: %p", newWindow);
+        } else {
+            LOGE("Failed to get ANativeWindow from surface");
+        }
+    }
+
+    ANativeWindow *oldWindow = g_previewWindow.exchange(newWindow, std::memory_order_acq_rel);
+    if (oldWindow) {
+        ANativeWindow_release(oldWindow);
+        LOGI("Released old preview window");
+    }
+}
+
+static void DispatchPreview(const FrameBuffer *target) {
+    if (!target || !target->data) return;
+
+    ANativeWindow *window = g_previewWindow.load(std::memory_order_acquire);
+    if (!window) return;
+
+    static auto lastPreviewTime = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
+
+    // 约 60fps (16ms)
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastPreviewTime).count() < 16) {
+        return;
+    }
+
+    ANativeWindow_Buffer outBuffer;
+    if (ANativeWindow_lock(window, &outBuffer, nullptr) == 0) {
+        if (outBuffer.width == target->width && outBuffer.height == target->height) {
+            int dstStride = outBuffer.stride * 4;
+            if (dstStride == target->stride) {
+                memcpy(outBuffer.bits, target->data, target->size);
+            } else {
+                int rowBytes = target->width * 4;
+                for (int y = 0; y < target->height; ++y) {
+                    memcpy((uint8_t *) outBuffer.bits + y * dstStride,
+                           target->data + y * target->stride,
+                           rowBytes);
+                }
+            }
+        }
+        ANativeWindow_unlockAndPost(window);
+        lastPreviewTime = now;
+    }
+}
+
 int64_t CopyFrameFromHardwareBuffer(void *env_ptr, void *hardwareBufferObj) {
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -574,6 +641,8 @@ int64_t CopyFrameFromHardwareBuffer(void *env_ptr, void *hardwareBufferObj) {
 
     AHardwareBuffer_unlock(buffer, nullptr);
 
+    DispatchPreview(target);
+
     target->timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::high_resolution_clock::now().time_since_epoch()).count();
     target->frameCount = g_frameCount.fetch_add(1) + 1;
@@ -583,8 +652,6 @@ int64_t CopyFrameFromHardwareBuffer(void *env_ptr, void *hardwareBufferObj) {
 
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-//    LOGD("CopyFrameFromHardwareBuffer: %lld us, frame #%lld", (long long) duration,
-//         (long long) target->frameCount);
 
     return target->frameCount;
 }

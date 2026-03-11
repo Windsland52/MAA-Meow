@@ -6,7 +6,7 @@ import android.media.ImageReader
 import android.os.Build
 
 object DisplayHelper {
-    private const val MAX_IMAGES = 5
+    private const val MAX_IMAGES = 3
     fun newInstanceImagerReader(width: Int, height: Int): ImageReader {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ImageReader.newInstance(

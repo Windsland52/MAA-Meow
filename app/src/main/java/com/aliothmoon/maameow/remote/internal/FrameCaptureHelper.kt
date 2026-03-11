@@ -7,16 +7,14 @@ import android.media.ImageReader
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Process
 import android.view.Surface
 import com.aliothmoon.maameow.bridge.NativeBridgeLib
 import com.aliothmoon.maameow.third.Ln
 
 object FrameCaptureHelper {
 
-    private val srcRect = Rect()
-    private val dstRect = Rect()
-
-    fun processImage(reader: ImageReader, onFrameUse: ((HardwareBuffer) -> Unit)? = null) {
+    fun processImage(reader: ImageReader) {
         val image = reader.acquireLatestImage() ?: return
         try {
             val hb = image.hardwareBuffer ?: run {
@@ -25,9 +23,8 @@ object FrameCaptureHelper {
             }
             try {
                 NativeBridgeLib.copyFrameFromHardwareBuffer(hb)
-                onFrameUse?.invoke(hb)
             } catch (e: Exception) {
-                Ln.w("processImage onFrameUse failed: ${e.message}")
+                Ln.w("processImage copyFrame failed: ${e.message}")
             } finally {
                 hb.close()
             }
@@ -39,28 +36,14 @@ object FrameCaptureHelper {
         }
     }
 
-    fun renderToMonitor(hb: HardwareBuffer, surface: Surface) {
-        if (!surface.isValid) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            try {
-                val canvas = surface.lockHardwareCanvas()
-                try {
-                    val bitmap = Bitmap.wrapHardwareBuffer(hb, null)
-                    if (bitmap != null) {
-                        srcRect.set(0, 0, bitmap.width, bitmap.height)
-                        dstRect.set(0, 0, canvas.width, canvas.height)
-                        canvas.drawBitmap(bitmap, srcRect, dstRect, null)
-                    }
-                } finally {
-                    surface.unlockCanvasAndPost(canvas)
-                }
-            } catch (e: Exception) {
-                Ln.w("renderToPreview failed: ${e.message}")
+    fun createCaptureHandler(name: String): Handler {
+        val thread = object : HandlerThread(name, Process.THREAD_PRIORITY_URGENT_DISPLAY) {
+            override fun onLooperPrepared() {
+                // Double check and ensure the priority is set correctly
+                Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_DISPLAY)
             }
         }
-    }
-
-    fun createCaptureHandler(name: String): Handler {
-        return Handler(HandlerThread(name).apply { start() }.looper)
+        thread.start()
+        return Handler(thread.looper)
     }
 }

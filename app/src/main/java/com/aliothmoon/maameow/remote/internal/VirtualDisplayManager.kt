@@ -132,16 +132,7 @@ object VirtualDisplayManager {
     }
 
     private fun onImageAvailable(reader: ImageReader) {
-        FrameCaptureHelper.processImage(reader) {
-            val now = SystemClock.elapsedRealtime()
-            if (now - lastPreviewTime >= DefaultDisplayConfig.FRAME_INTERVAL_MS) {
-                monitorSurface.get()?.let { surface ->
-                    FrameCaptureHelper.renderToMonitor(it, surface)
-                }
-                lastPreviewTime = now
-            }
-        }
-
+        FrameCaptureHelper.processImage(reader)
     }
 
     private fun createVirtualDisplay(surface: Surface, cfg: DisplayConfig) {

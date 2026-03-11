@@ -8,9 +8,10 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 
-import android.graphics.Matrix
-import android.graphics.SurfaceTexture
-import android.view.TextureView
+import android.graphics.PixelFormat
+import android.view.SurfaceHolder
+import android.view.SurfaceView
+import androidx.compose.foundation.layout.aspectRatio
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -176,46 +177,43 @@ fun BackgroundTaskView(
     var isSurfaceAvailable by remember { mutableStateOf(false) }
     val previewContent = remember {
         movableContentOf {
-            AndroidView(
-                factory = { ctx ->
-                    TextureView(ctx).apply {
-                        surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-                            override fun onSurfaceTextureAvailable(
-                                surfaceTexture: SurfaceTexture,
-                                width: Int,
-                                height: Int
-                            ) {
-                                surfaceTexture.setDefaultBufferSize(
-                                    DefaultDisplayConfig.WIDTH,
-                                    DefaultDisplayConfig.HEIGHT
-                                )
-                                isSurfaceAvailable = true
-                                viewModel.onSurfaceAvailable(surfaceTexture)
-                                updateTextureTransform(this@apply, width, height)
-                            }
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        SurfaceView(ctx).apply {
+                            holder.setFormat(PixelFormat.RGBA_8888)
+                            holder.addCallback(object : SurfaceHolder.Callback {
+                                override fun surfaceCreated(holder: SurfaceHolder) {
+                                    holder.setFixedSize(
+                                        DefaultDisplayConfig.WIDTH,
+                                        DefaultDisplayConfig.HEIGHT
+                                    )
+                                    isSurfaceAvailable = true
+                                    viewModel.onSurfaceAvailable(holder.surface)
+                                }
 
-                            override fun onSurfaceTextureSizeChanged(
-                                surfaceTexture: SurfaceTexture,
-                                width: Int,
-                                height: Int
-                            ) {
-                                Timber.d("SurfaceTexture size changed to $width x $height")
-                                updateTextureTransform(this@apply, width, height)
-                            }
+                                override fun surfaceChanged(
+                                    holder: SurfaceHolder,
+                                    format: Int,
+                                    width: Int,
+                                    height: Int
+                                ) {
+                                    Timber.d("Surface size changed to $width x $height")
+                                }
 
-                            override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
-                                isSurfaceAvailable = false
-                                viewModel.onSurfaceDestroyed()
-                                return true
-                            }
-
-                            override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) =
-                                Unit
+                                override fun surfaceDestroyed(holder: SurfaceHolder) {
+                                    isSurfaceAvailable = false
+                                    viewModel.onSurfaceDestroyed()
+                                }
+                            })
                         }
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+                    },
+                    modifier = Modifier.aspectRatio(DefaultDisplayConfig.ASPECT_RATIO)
+                )
+            }
         }
     }
 
@@ -681,29 +679,6 @@ fun BackgroundTaskView(
             )
         }
     }
-}
-
-private fun updateTextureTransform(textureView: TextureView, viewWidth: Int, viewHeight: Int) {
-    if (viewWidth == 0 || viewHeight == 0) return
-
-    val viewW = viewWidth.toFloat()
-    val viewH = viewHeight.toFloat()
-    val bufferW = DefaultDisplayConfig.WIDTH.toFloat()
-    val bufferH = DefaultDisplayConfig.HEIGHT.toFloat()
-
-    val matrix = Matrix()
-    val scale = minOf(viewW / bufferW, viewH / bufferH)
-
-    matrix.postScale(bufferW / viewW, bufferH / viewH)
-    matrix.postScale(scale, scale)
-
-    val scaledW = bufferW * scale
-    val scaledH = bufferH * scale
-    val offsetX = (viewW - scaledW) / 2f
-    val offsetY = (viewH - scaledH) / 2f
-    matrix.postTranslate(offsetX, offsetY)
-
-    textureView.setTransform(matrix)
 }
 
 private fun viewToVirtualDisplay(

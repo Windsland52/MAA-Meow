@@ -119,6 +119,8 @@ BRIDGE_API void ReleaseFrameBuffers(void);
 // 从 HardwareBuffer 拷贝帧数据，返回帧计数，失败返回 -1
 BRIDGE_API int64_t CopyFrameFromHardwareBuffer(void *env, void *hardwareBufferObj);
 
+BRIDGE_API void SetPreviewSurface(void *env, void *jSurface);
+
 // 获取当前帧缓冲（只读）
 BRIDGE_API const FrameBuffer *GetCurrentFrame(void);
 

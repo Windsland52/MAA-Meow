@@ -33,6 +33,9 @@ public class NativeBridgeLib {
 
 
     @SuppressWarnings("JavaJniMissingFunction")
+    public static native void setPreviewSurface(Object surface);
+
+    @SuppressWarnings("JavaJniMissingFunction")
     public static native void releaseFrameBuffers();
 
     /**

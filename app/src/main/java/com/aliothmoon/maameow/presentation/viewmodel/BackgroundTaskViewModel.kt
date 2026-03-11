@@ -137,8 +137,7 @@ class BackgroundTaskViewModel(
         }
     }
 
-    fun onSurfaceAvailable(surfaceTexture: SurfaceTexture) {
-        val surface = Surface(surfaceTexture)
+    fun onSurfaceAvailable(surface: Surface) {
         surfaceRef.set(surface)
         setRemoteSurface(surface)
     }
