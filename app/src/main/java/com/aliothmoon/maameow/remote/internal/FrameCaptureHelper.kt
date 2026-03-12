@@ -22,7 +22,7 @@ object FrameCaptureHelper {
                 return
             }
             try {
-                NativeBridgeLib.copyFrameFromHardwareBuffer(hb)
+                NativeBridgeLib.copyFrameFromHardwareBuffer(hb, image.timestamp)
             } catch (e: Exception) {
                 Ln.w("processImage copyFrame failed: ${e.message}")
             } finally {

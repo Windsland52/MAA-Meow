@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 
 import android.graphics.PixelFormat
+import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.foundation.layout.aspectRatio
@@ -98,6 +99,7 @@ import com.aliothmoon.maameow.data.preferences.AppSettingsManager
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -175,6 +177,8 @@ fun BackgroundTaskView(
 
 
     var isSurfaceAvailable by remember { mutableStateOf(false) }
+    var lastSentSurface by remember { mutableStateOf<Surface?>(null) }
+
     val previewContent = remember {
         movableContentOf {
             Box(
@@ -187,12 +191,15 @@ fun BackgroundTaskView(
                             holder.setFormat(PixelFormat.RGBA_8888)
                             holder.addCallback(object : SurfaceHolder.Callback {
                                 override fun surfaceCreated(holder: SurfaceHolder) {
-                                    holder.setFixedSize(
-                                        DefaultDisplayConfig.WIDTH,
-                                        DefaultDisplayConfig.HEIGHT
-                                    )
                                     isSurfaceAvailable = true
-                                    viewModel.onSurfaceAvailable(holder.surface)
+                                    // 延迟 50ms 设置固定大小，避开系统 Transition 冲突
+                                    coroutineScope.launch {
+                                        delay(50)
+                                        holder.setFixedSize(
+                                            DefaultDisplayConfig.WIDTH,
+                                            DefaultDisplayConfig.HEIGHT
+                                        )
+                                    }
                                 }
 
                                 override fun surfaceChanged(
@@ -202,10 +209,18 @@ fun BackgroundTaskView(
                                     height: Int
                                 ) {
                                     Timber.d("Surface size changed to $width x $height")
+                                    // 只有尺寸正确且 Surface 未发送过时才发送
+                                    if (width == DefaultDisplayConfig.WIDTH && height == DefaultDisplayConfig.HEIGHT) {
+                                        if (lastSentSurface != holder.surface) {
+                                            lastSentSurface = holder.surface
+                                            viewModel.onSurfaceAvailable(holder.surface)
+                                        }
+                                    }
                                 }
 
                                 override fun surfaceDestroyed(holder: SurfaceHolder) {
                                     isSurfaceAvailable = false
+                                    lastSentSurface = null
                                     viewModel.onSurfaceDestroyed()
                                 }
                             })

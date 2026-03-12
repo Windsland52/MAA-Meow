@@ -5,6 +5,7 @@ import android.hardware.HardwareBuffer;
 
 import com.aliothmoon.maameow.third.Ln;
 
+import dalvik.annotation.optimization.FastNative;
 
 public class NativeBridgeLib {
     public static boolean LOADED;
@@ -20,19 +21,17 @@ public class NativeBridgeLib {
     }
 
     // for test
+    @FastNative
     @SuppressWarnings("JavaJniMissingFunction")
     public static native String ping();
-
 
     @SuppressWarnings("JavaJniMissingFunction")
     public static native void initFrameBuffers(int width, int height);
 
-
     @SuppressWarnings("JavaJniMissingFunction")
-    public static native long copyFrameFromHardwareBuffer(HardwareBuffer buffer);
+    public static native long copyFrameFromHardwareBuffer(HardwareBuffer hardwareBuffer, long timestampNs);
 
-
-    @SuppressWarnings("JavaJniMissingFunction")
+    @FastNative
     public static native void setPreviewSurface(Object surface);
 
     @SuppressWarnings("JavaJniMissingFunction")

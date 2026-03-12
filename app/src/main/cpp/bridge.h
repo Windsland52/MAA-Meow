@@ -2,6 +2,8 @@
 #define NATIVE_LIB_H
 
 #include <jni.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,11 +40,13 @@ typedef enum {
 #define FRAME_BUFFER_COUNT 3
 
 typedef struct {
-    uint8_t *data;           // 像素数据
+    uint8_t *data;           // RGBA 像素数据
+    uint8_t *bgr_data;       // BGR 像素数据
     int width;               // 宽度
     int height;              // 高度
-    int stride;              // 行字节数
-    size_t size;             // 数据大小
+    int stride;              // RGBA 行字节数
+    size_t size;             // RGBA 数据大小
+    size_t bgr_size;         // BGR 数据大小
     int64_t timestamp;       // 时间戳(纳秒)
     int64_t frameCount;      // 帧计数
 } FrameBuffer;
