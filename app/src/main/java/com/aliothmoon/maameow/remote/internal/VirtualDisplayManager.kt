@@ -66,6 +66,10 @@ object VirtualDisplayManager {
 
     fun setMonitorSurface(surface: Surface?) {
         val old = monitorSurface.getAndSet(surface)
+        if (old != null && old != surface) {
+            old.release()
+            Ln.i("Old monitor surface released")
+        }
         Ln.i("setMonitorSurface: old=${old != null}, new=${surface != null}")
     }
 
@@ -82,6 +86,8 @@ object VirtualDisplayManager {
             return
         }
         releaseResources()
+        // 彻底释放预览 Surface
+        monitorSurface.getAndSet(null)?.release()
         NativeBridgeLib.releaseFrameBuffers()
         Ln.i("VirtualDisplayManager stopped")
     }

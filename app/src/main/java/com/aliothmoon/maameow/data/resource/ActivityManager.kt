@@ -6,12 +6,19 @@ import com.aliothmoon.maameow.data.model.activity.ClientStageActivity
 import com.aliothmoon.maameow.data.model.activity.MiniGame
 import com.aliothmoon.maameow.data.model.activity.StageActivityInfo
 import com.aliothmoon.maameow.data.model.activity.StageActivityRoot
+import com.aliothmoon.maameow.data.preferences.TaskChainState
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.time.DayOfWeek
@@ -27,15 +34,22 @@ import kotlin.collections.plus
  * see StageManager
  */
 class ActivityManager(
+    private val chainState: TaskChainState,
     private val maaApiService: MaaApiService,
     private val itemHelper: ItemHelper,
-    private val resourceDataManager: ResourceDataManager
 ) {
 
     private val _activityStages = MutableStateFlow<List<ActivityStage>>(emptyList())
     private val _miniGames = MutableStateFlow<List<MiniGame>>(emptyList())
     private val _resourceCollection = MutableStateFlow<StageActivityInfo?>(null)
     private val _stages = MutableStateFlow<Map<String, MergedStageInfo>>(emptyMap())
+
+    /** 热更资源脏标记，定时检查发现变化时置 true */
+    @Volatile
+    private var dirty = false
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var periodicJob: Job? = null
 
     /** 活动关卡列表 */
     val activityStages: StateFlow<List<ActivityStage>> = _activityStages.asStateFlow()
@@ -114,24 +128,23 @@ class ActivityManager(
 
     private fun doParseMiniGame(activity: ClientStageActivity): List<MiniGame> {
         // 解析小游戏 (see WPF ParseMiniGameEntries)
-        val parsedMiniGames = activity.miniGame
-            ?.map { MiniGame.fromEntry(it) }
+        val parsedMiniGames = activity.miniGame?.map { MiniGame.fromEntry(it) }
             ?.filter { it.isOpen }  // WPF: entry.BeingOpen
             ?: emptyList()
 
         // 合并默认小游戏 (see WPF InitializeDefaultMiniGameEntries + InsertRange)
         val parsedValues = parsedMiniGames.map { it.value }.toSet()
-        val defaultMiniGames = DefaultMiniGames.ENTRIES
-            .filter { it.value !in parsedValues }  // 按 value 去重
-            .map { entry ->
-                MiniGame(
-                    display = entry.display,
-                    value = entry.value,
-                    utcStartTime = 0L,
-                    utcExpireTime = Long.MAX_VALUE,
-                    tipKey = entry.tipKey
-                )
-            }
+        val defaultMiniGames =
+            DefaultMiniGames.ENTRIES.filter { it.value !in parsedValues }  // 按 value 去重
+                .map { entry ->
+                    MiniGame(
+                        display = entry.display,
+                        value = entry.value,
+                        utcStartTime = 0L,
+                        utcExpireTime = Long.MAX_VALUE,
+                        tipKey = entry.tipKey
+                    )
+                }
         return parsedMiniGames + defaultMiniGames  // API 在前，默认在后
     }
 
@@ -209,9 +222,7 @@ class ActivityManager(
                 if (stageItems.isNotEmpty()) {
                     groups.add(
                         StageGroup(
-                            title = activityTip,
-                            stages = stageItems,
-                            daysLeftText = daysLeftText
+                            title = activityTip, stages = stageItems, daysLeftText = daysLeftText
                         )
                     )
                 }
@@ -221,10 +232,7 @@ class ActivityManager(
         // 2. 常驻关卡分组
         // InitializeDefaultStages()     固定关卡（剿灭等）
         val defaultStageItem = StageItem(
-            code = "",
-            displayName = "当前/上次",
-            isActivityStage = false,
-            isOpenToday = true
+            code = "", displayName = "当前/上次", isActivityStage = false, isOpenToday = true
         )
 
         // AddPermanentStages()          常驻关卡（主线/资源本等）
@@ -267,12 +275,9 @@ class ActivityManager(
      * 判断是否为资源本（受资源收集活动影响）
      */
     private fun isResourceStage(code: String): Boolean {
-        return code.startsWith("CE-") ||
-                code.startsWith("LS-") ||
-                code.startsWith("CA-") ||
-                code.startsWith("AP-") ||
-                code.startsWith("SK-") ||
-                code.startsWith("PR-")
+        return code.startsWith("CE-") || code.startsWith("LS-") || code.startsWith("CA-") || code.startsWith(
+            "AP-"
+        ) || code.startsWith("SK-") || code.startsWith("PR-")
     }
 
     /**
@@ -341,13 +346,54 @@ class ActivityManager(
         )
 
         // 找到下一个切换点
-        val nextSwitch = switchPoints.firstOrNull { it.isAfter(now) }
-            ?: today.plusDays(1).atTime(4, 0).atZone(serverZone)
+        val nextSwitch =
+            switchPoints.firstOrNull { it.isAfter(now) }
+                ?: today.plusDays(1).atTime(4, 0)
+                    .atZone(serverZone)
 
         val baseDelay = ChronoUnit.MILLIS.between(now, nextSwitch)
         // 0~10 分钟随机延迟
         val randomDelay = (Math.random() * 10 * 60 * 1000).toLong()
         return baseDelay + randomDelay
+    }
+
+
+    fun startPeriodicCheck() {
+        if (periodicJob?.isActive == true) return
+        periodicJob = scope.launch {
+            while (isActive) {
+                val delayMs = calcNextUpdateDelayMs()
+                Timber.d("下次热更检查: %.1f 分钟后", delayMs / 60_000.0)
+                delay(delayMs)
+                checkForUpdates()
+            }
+        }
+    }
+
+    suspend fun runIfDirty(action: suspend () -> Unit) {
+        if (dirty) {
+            action()
+        }
+        dirty = false
+    }
+
+
+    private suspend fun checkForUpdates() {
+        try {
+            val stageChanged = maaApiService.checkStageActivityChanged()
+            val taskChanged = maaApiService.checkTasksChanged()
+            if (stageChanged || taskChanged) {
+                val clientType = chainState.getClientType()
+                val type = if (clientType == "Bilibili") "Official" else clientType
+                doLoadActivityStages(type)
+                dirty = true
+                Timber.i("热更资源有变化(stage=$stageChanged, task=$taskChanged)")
+            } else {
+                Timber.d("热更资源无变化")
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "定时热更检查失败")
+        }
     }
 
     // ==================== 关卡查询与提示 ====================
@@ -364,9 +410,7 @@ class ActivityManager(
             val expiredActivity =
                 StageActivityInfo(name = stage, tip = "", utcStartTime = 0L, utcExpireTime = 0L)
             return MergedStageInfo(
-                code = stage,
-                displayName = stage,
-                activity = expiredActivity
+                code = stage, displayName = stage, activity = expiredActivity
             )
         }
 
@@ -388,15 +432,10 @@ class ActivityManager(
      */
     fun addUnOpenStage(stage: String) {
         val unopenActivity = StageActivityInfo(
-            name = stage,
-            tip = "",
-            utcStartTime = 0L,
-            utcExpireTime = 0L
+            name = stage, tip = "", utcStartTime = 0L, utcExpireTime = 0L
         )
-        _stages.value = _stages.value + (stage to MergedStageInfo(
-            code = stage,
-            displayName = stage,
-            activity = unopenActivity
+        _stages.value += (stage to MergedStageInfo(
+            code = stage, displayName = stage, activity = unopenActivity
         ))
     }
 

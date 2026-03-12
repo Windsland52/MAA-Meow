@@ -59,6 +59,7 @@ ProcessFrameData(const uint8_t *src, uint8_t *dstRGBA, uint8_t *dstBGR, int widt
         if (y + 1 < height) __builtin_prefetch(src + (y + 1) * srcStride, 0, 3);
 
         int x = 0;
+        // ps: 模拟器不差这点性能(
 #if defined(__ARM_NEON)
         for (; x <= width - 16; x += 16) {
             uint8x16x4_t rgba = vld4q_u8(srcLine + x * 4);

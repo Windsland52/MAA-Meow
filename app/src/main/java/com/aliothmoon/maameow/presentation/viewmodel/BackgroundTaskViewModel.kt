@@ -275,16 +275,16 @@ class BackgroundTaskViewModel(
 
 
     fun onMuteGameSound() {
-        chainState.findFirstConfig<WakeUpConfig>()?.let {
-            val pkg = Packages[it.clientType] ?: return
+        chainState.getClientTypeOrNull()?.let {
+            val pkg = Packages[it] ?: return
             RemoteServiceManager.getInstanceOrNull()
                 ?.setPlayAudioOpAllowed(pkg, false)
         }
     }
 
     fun onUnmuteGameSound() {
-        chainState.findFirstConfig<WakeUpConfig>()?.let {
-            val pkg = Packages[it.clientType] ?: return
+        chainState.getClientTypeOrNull()?.let {
+            val pkg = Packages[it] ?: return
             RemoteServiceManager.getInstanceOrNull()
                 ?.setPlayAudioOpAllowed(pkg, true)
         }

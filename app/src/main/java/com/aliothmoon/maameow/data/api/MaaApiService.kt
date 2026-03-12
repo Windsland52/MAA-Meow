@@ -92,7 +92,16 @@ class MaaApiService(
         return null
     }
 
+    /**
+     * 请求结果，携带数据和是否有变化的标记
+     */
+    data class FetchResult(val data: String?, val changed: Boolean)
+
     private suspend fun fetchWithETag(url: String): String? {
+        return fetchWithETagDetailed(url).data
+    }
+
+    private suspend fun fetchWithETagDetailed(url: String): FetchResult {
         return try {
             val header = eTagCache.getConditionalHeader(url)
             val response = httpClient.get(
@@ -103,11 +112,11 @@ class MaaApiService(
             handleResponse(url, response)
         } catch (e: IOException) {
             Timber.e(e, "$TAG: request failed: $url")
-            null
+            FetchResult(null, false)
         }
     }
 
-    private fun handleResponse(url: String, response: Response): String? {
+    private fun handleResponse(url: String, response: Response): FetchResult {
         return response.use { resp ->
             val api = getRealKey(url)
             when (resp.code) {
@@ -116,20 +125,36 @@ class MaaApiService(
                     val body = resp.body.string()
                     internalCache.put(api, body)
                     Timber.d("$TAG: request succeeded: $url (${body.length} bytes)")
-                    body
+                    FetchResult(body, true)
                 }
 
                 304 -> {
                     Timber.d("$TAG: 304 Not Modified: $url")
-                    internalCache.get(api)
+                    FetchResult(internalCache.get(api), false)
                 }
 
                 else -> {
                     Timber.w("$TAG: HTTP ${resp.code}: $url")
-                    null
+                    FetchResult(null, false)
                 }
             }
         }
+    }
+
+    /**
+     * 检查指定 API 是否有更新（ETag 变化检测）
+     * @return true 表示有新数据（200），false 表示无变化（304）或请求失败
+     */
+    private suspend fun checkChanged(api: String): Boolean {
+        API_URLS.forEach {
+            val result = withContext(Dispatchers.IO) {
+                fetchWithETagDetailed("$it${api}")
+            }
+            if (result.data != null) {
+                return result.changed
+            }
+        }
+        return false
     }
 
     private fun getRealKey(url: String): String {
@@ -171,5 +196,15 @@ class MaaApiService(
      */
     suspend fun getGlobalTasksInfo(clientType: String): String? {
         return requestWithCache(MaaApi.getGlobalTasksApi(clientType))
+    }
+
+    /** 检查活动关卡数据是否有更新 */
+    suspend fun checkStageActivityChanged(): Boolean {
+        return checkChanged(MaaApi.STAGE_ACTIVITY_API)
+    }
+
+    /** 检查任务配置数据是否有更新 */
+    suspend fun checkTasksChanged(): Boolean {
+        return checkChanged(MaaApi.TASKS_API)
     }
 }

@@ -13,7 +13,7 @@ class BuildTaskParamsUseCase(private val chainState: TaskChainState) {
             .filter { it.enabled }
             .sortedBy { it.order }
         val creditFightAvailability = resolveMallCreditFightAvailability(enabledNodes)
-        val clientType = chainState.findFirstConfig<WakeUpConfig>()?.clientType ?: WakeUpConfig().clientType
+        val clientType = chainState.getClientType()
 
         if (!creditFightAvailability.isAvailable && enabledNodes.any { (it.config as? MallConfig)?.creditFight == true }) {
             Timber.w(

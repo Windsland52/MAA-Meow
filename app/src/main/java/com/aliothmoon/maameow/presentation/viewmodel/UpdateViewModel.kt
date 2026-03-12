@@ -148,7 +148,6 @@ class UpdateViewModel(
             )
             if (result.isSuccess) {
                 refreshResourceVersion()
-                maaResourceLoader.reset()
                 maaResourceLoader.load()
             }
         }

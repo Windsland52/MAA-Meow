@@ -6,6 +6,7 @@ import com.aliothmoon.maameow.MaaCoreCallback
 import com.aliothmoon.maameow.constant.DefaultDisplayConfig
 import com.aliothmoon.maameow.data.model.LogLevel
 import com.aliothmoon.maameow.data.preferences.AppSettingsManager
+import com.aliothmoon.maameow.data.resource.ActivityManager
 import com.aliothmoon.maameow.domain.models.RunMode
 import com.aliothmoon.maameow.domain.state.MaaExecutionState
 import com.aliothmoon.maameow.maa.AsstMsg
@@ -28,6 +29,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.koin.java.KoinJavaComponent.inject
+import timber.log.Timber
 import java.util.concurrent.atomic.AtomicReference
 
 class MaaCompositionService(
@@ -36,6 +38,7 @@ class MaaCompositionService(
     private val appSettings: AppSettingsManager,
     private val unifiedStateDispatcher: UnifiedStateDispatcher,
     private val runtimeLogCenter: RuntimeLogCenter,
+    private val activityManager: ActivityManager,
 ) : MaaExecutionStateHolder {
 
     private val _state = MutableStateFlow(MaaExecutionState.IDLE)
@@ -110,6 +113,7 @@ class MaaCompositionService(
         onAsyncConnectCallback(msg, json)
         callbackDispatcher.dispatch(msg, json)
     }
+
     val callback = object : MaaCoreCallback.Stub() {
         override fun onCallback(msg: Int, json: String?) = handleCallback(msg, json)
     }
@@ -132,6 +136,9 @@ class MaaCompositionService(
         runtimeLogCenter.startSession(taskNames)
         runtimeLogCenter.appendAndWait("开始执行任务，共 ${tasks.size} 项", LogLevel.INFO)
         return withContext(Dispatchers.IO) {
+            activityManager.runIfDirty {
+                resourceLoader.load()
+            }
             val loaded = resourceLoader.ensureLoaded()
             if (loaded.isFailure) {
                 _state.value = MaaExecutionState.ERROR
@@ -233,6 +240,9 @@ class MaaCompositionService(
         runtimeLogCenter.startSession(listOf(task.type.value))
         runtimeLogCenter.appendAndWait("开始执行自动战斗", LogLevel.INFO)
         return withContext(Dispatchers.IO) {
+            activityManager.runIfDirty {
+                resourceLoader.load()
+            }
             val loaded = resourceLoader.ensureLoaded()
             if (loaded.isFailure) {
                 _state.value = MaaExecutionState.ERROR
@@ -287,6 +297,7 @@ class MaaCompositionService(
                         val (width, height) = Misc.getScreenSize(applicationContext)
                         buildConnectConfig(width, height, displayId)
                     }
+
                     RunMode.BACKGROUND -> {
                         buildConnectConfig(
                             DefaultDisplayConfig.WIDTH,
@@ -323,10 +334,6 @@ class MaaCompositionService(
                 return@useRemoteService StartResult.Success(maa.GetVersion())
             }
         }
-    }
-
-    suspend fun startCopilot(params: String): StartResult {
-        return startCopilot(MaaTaskParams(com.aliothmoon.maameow.maa.task.MaaTaskType.COPILOT, params))
     }
 
     fun buildConnectConfig(width: Int, height: Int, displayId: Int): String {

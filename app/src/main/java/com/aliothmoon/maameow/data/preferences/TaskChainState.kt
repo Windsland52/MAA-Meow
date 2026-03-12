@@ -134,9 +134,17 @@ class TaskChainState(private val context: Context) {
         return chain.value.firstNotNullOfOrNull { it.config as? T }
     }
 
+    fun getClientType(): String {
+        return getClientTypeOrNull() ?: "Official"
+    }
+
+    fun getClientTypeOrNull(): String? {
+        return findFirstConfig<WakeUpConfig>()?.clientType
+    }
+
     fun grantGameBatteryExemption() {
-        findFirstConfig<WakeUpConfig>()?.let {
-            val pkg = Packages[it.clientType] ?: return
+        getClientTypeOrNull()?.let {
+            val pkg = Packages[it] ?: return
             runCatching {
                 RemoteServiceManager.getInstanceOrNull()?.grantPermissions(
                     PermissionGrantRequest(

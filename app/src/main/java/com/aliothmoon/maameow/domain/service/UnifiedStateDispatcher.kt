@@ -4,6 +4,7 @@ import com.aliothmoon.maameow.RemoteService
 import com.aliothmoon.maameow.data.preferences.AppSettingsManager
 import com.aliothmoon.maameow.data.model.WakeUpConfig
 import com.aliothmoon.maameow.data.preferences.TaskChainState
+import com.aliothmoon.maameow.data.resource.ActivityManager
 import com.aliothmoon.maameow.domain.state.ResourceInitState
 import com.aliothmoon.maameow.manager.PermissionManager
 import com.aliothmoon.maameow.manager.RemoteServiceManager
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,6 +31,7 @@ class UnifiedStateDispatcher(
     private val permissionManager: PermissionManager,
     private val chainState: TaskChainState,
     private val resourceInitService: ResourceInitService,
+    private val activityManager: ActivityManager,
 ) {
     private val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -92,6 +95,16 @@ class UnifiedStateDispatcher(
                 }
         }
 
+        // 资源加载成功后启动热更定时检查
+        scope.launch {
+            resourceLoader.state
+                .filter { it is MaaResourceLoader.State.Ready }
+                .collect {
+                    activityManager.startPeriodicCheck()
+                }
+        }
+
+        // 切换客户端时就要重新加载资源
         scope.launch {
             chainState.firstConfigFlow<WakeUpConfig>()
                 .map { (it ?: WakeUpConfig()).clientType }
@@ -101,7 +114,6 @@ class UnifiedStateDispatcher(
                     if (resourceLoader.state.value is MaaResourceLoader.State.Ready) {
                         Timber.i("Client type changed to $newClientType, reloading resources")
                         withContext(Dispatchers.IO) {
-                            resourceLoader.reset()
                             resourceLoader.load(newClientType)
                         }
                     }

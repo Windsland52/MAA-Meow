@@ -40,7 +40,7 @@ class MaaResourceLoader(
     private val _state = MutableStateFlow<State>(State.NotLoaded)
     val state: StateFlow<State> = _state.asStateFlow()
 
-    suspend fun load(clientType: String = chainState.findFirstConfig<WakeUpConfig>()?.clientType ?: WakeUpConfig().clientType): Result<Unit> {
+    suspend fun load(clientType: String = chainState.getClientType()): Result<Unit> {
         _state.value = State.Loading()
         Timber.i("MaaCore resources loading, clientType=$clientType")
         loadDepsInfo(clientType)
