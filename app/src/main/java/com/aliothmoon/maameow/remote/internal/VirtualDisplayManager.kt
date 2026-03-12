@@ -86,7 +86,6 @@ object VirtualDisplayManager {
             return
         }
         releaseResources()
-        // 彻底释放预览 Surface
         monitorSurface.getAndSet(null)?.release()
         NativeBridgeLib.releaseFrameBuffers()
         Ln.i("VirtualDisplayManager stopped")

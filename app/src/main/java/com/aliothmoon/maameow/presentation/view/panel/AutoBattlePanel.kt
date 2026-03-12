@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -39,13 +41,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aliothmoon.maameow.domain.service.OperatorDisplayItem
 import com.aliothmoon.maameow.domain.state.MaaExecutionState
 import com.aliothmoon.maameow.presentation.components.CheckBoxWithExpandableTip
 import com.aliothmoon.maameow.presentation.components.CheckBoxWithLabel
@@ -291,7 +297,7 @@ fun AutoBattlePanel(
         // 作业详情 + 视频链接
         if (state.currentCopilot != null) {
             val doc = state.currentCopilot!!.doc
-            val hasDetail = doc.title.isNotBlank() || doc.details.isNotBlank() || state.operatorSummary.isNotBlank()
+            val hasDetail = doc.title.isNotBlank() || doc.details.isNotBlank() || state.operatorSummary?.isEmpty == false
             val hasVideo = state.videoUrl.isNotBlank()
             if (hasDetail || hasVideo) {
                 item {
@@ -326,18 +332,63 @@ fun AutoBattlePanel(
                                     }
                                 }
                             }
-                            if (state.operatorSummary.isNotBlank()) {
+                            val summary = state.operatorSummary
+                            if (summary != null && !summary.isEmpty) {
                                 if (doc.title.isNotBlank() || doc.details.isNotBlank()) {
                                     HorizontalDivider(
                                         color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.2f)
                                     )
                                 }
-                                Text(
-                                    text = state.operatorSummary,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                val textMeasurer = rememberTextMeasurer()
+                                val labelStyle = MaterialTheme.typography.labelSmall
+                                val nameColumnWidth = remember(summary) {
+                                    val allNames = summary.operators.map { it.name } +
+                                            summary.groups.flatMap { (_, opers) -> opers.map { it.name } }
+                                    val maxTextWidth = allNames.maxOfOrNull { name ->
+                                        textMeasurer.measure(name, labelStyle).size.width
+                                    } ?: 0
+                                    maxTextWidth
+                                }
+                                val density = LocalDensity.current
+                                val nameWidth = remember(nameColumnWidth) {
+                                    with(density) { nameColumnWidth.toDp() }
+                                }
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    // 独立干员
+                                    if (summary.operators.isNotEmpty()) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(
+                                                text = "干员",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
+                                            summary.operators.forEach { oper ->
+                                                OperatorRow(oper, nameWidth = nameWidth, modifier = Modifier.padding(start = 8.dp))
+                                            }
+                                        }
+                                    }
+                                    // 备选组
+                                    summary.groups.forEach { (groupName, opers) ->
+                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(
+                                                text = "干员组: $groupName",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
+                                            opers.forEach { oper ->
+                                                OperatorRow(oper, nameWidth = nameWidth, modifier = Modifier.padding(start = 8.dp))
+                                            }
+                                        }
+                                    }
+                                    // 统计
+                                    Text(
+                                        text = "共 ${summary.totalCount} 名干员/组",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
+                                    )
+                                }
                             }
                             if (hasVideo) {
                                 Text(
@@ -671,5 +722,53 @@ fun AutoBattlePanel(
             }
         }
 
+    }
+}
+
+@Composable
+private fun OperatorRow(
+    item: OperatorDisplayItem,
+    nameWidth: Dp,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            shape = RoundedCornerShape(4.dp),
+            color = MaterialTheme.colorScheme.primaryContainer
+        ) {
+            Text(
+                text = item.name,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier
+                    .width(nameWidth)
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            itemVerticalAlignment = Alignment.CenterVertically
+        ) {
+            item.tags.forEach { tag ->
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Text(
+                        text = tag,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+        }
     }
 }

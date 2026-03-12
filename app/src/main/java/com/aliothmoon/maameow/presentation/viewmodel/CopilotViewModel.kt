@@ -11,6 +11,7 @@ import com.aliothmoon.maameow.data.resource.ResourceDataManager
 import com.aliothmoon.maameow.domain.service.CopilotManager
 import com.aliothmoon.maameow.domain.service.CopilotRequestException
 import com.aliothmoon.maameow.domain.service.MaaCompositionService
+import com.aliothmoon.maameow.domain.service.OperatorSummaryData
 import com.aliothmoon.maameow.domain.state.MaaExecutionState
 import com.aliothmoon.maameow.maa.callback.CopilotRuntimeStateStore
 import com.aliothmoon.maameow.maa.task.MaaTaskType
@@ -63,7 +64,7 @@ data class CopilotUiState(
     val isLoading: Boolean = false,
     val statusMessage: String = "",
     val videoUrl: String = "",
-    val operatorSummary: String = "",
+    val operatorSummary: OperatorSummaryData? = null,
 )
 
 class CopilotViewModel(
@@ -157,7 +158,7 @@ class CopilotViewModel(
                     isLoading = true,
                     statusMessage = "正在解析...",
                     currentCopilot = null,
-                    operatorSummary = "",
+                    operatorSummary = null,
                     videoUrl = "",
                 )
             }

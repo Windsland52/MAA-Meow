@@ -3,6 +3,7 @@ package com.aliothmoon.maameow.domain.service
 import com.aliothmoon.maameow.data.api.CopilotApiService
 import com.aliothmoon.maameow.data.model.CopilotConfig
 import com.aliothmoon.maameow.data.model.copilot.CopilotListItem
+import com.aliothmoon.maameow.data.model.copilot.CopilotOperatorRequirements
 import com.aliothmoon.maameow.data.model.copilot.CopilotTaskData
 import com.aliothmoon.maameow.data.repository.CopilotRepository
 import com.aliothmoon.maameow.maa.task.MaaTaskParams
@@ -41,6 +42,19 @@ sealed class CopilotRequestException(message: String, cause: Throwable? = null) 
         CopilotRequestException(detail ?: "json error", cause)
 }
 
+data class OperatorDisplayItem(
+    val name: String,
+    val tags: List<String>,
+)
+
+data class OperatorSummaryData(
+    val operators: List<OperatorDisplayItem>,
+    val groups: List<Pair<String, List<OperatorDisplayItem>>>,
+    val totalCount: Int,
+) {
+    val isEmpty get() = totalCount == 0
+}
+
 class CopilotManager(
     private val apiService: CopilotApiService,
     private val repository: CopilotRepository,
@@ -77,7 +91,12 @@ class CopilotManager(
         }
         val content = response.data.content
         if (content.isBlank()) {
-            return Result.failure(CopilotRequestException.JsonError(isSet = false, detail = "empty content"))
+            return Result.failure(
+                CopilotRequestException.JsonError(
+                    isSet = false,
+                    detail = "empty content"
+                )
+            )
         }
         val taskData = parseJson(content).getOrElse {
             return Result.failure(
@@ -272,20 +291,60 @@ class CopilotManager(
     }
 
     /**
-     * 获取干员摘要文本
+     * 获取干员摘要（结构化）
+     * 对齐 WPF CopilotModel.Output() 的展示逻辑
      */
-    fun getOperatorSummary(data: CopilotTaskData): String {
-        val parts = mutableListOf<String>()
-        if (data.opers.isNotEmpty()) {
-            parts.add("干员: ${data.opers.joinToString(", ") { "${it.name}(技能${it.skill})" }}")
+    fun getOperatorSummary(data: CopilotTaskData): OperatorSummaryData {
+        val operators = data.opers.map { oper ->
+            val req = oper.requirements
+            OperatorDisplayItem(
+                name = oper.name,
+                tags = buildOperatorTags(req, skill = oper.skill, showLevel = true)
+            )
         }
-        if (data.groups.isNotEmpty()) {
-            parts.add("备选组: ${data.groups.joinToString(", ") { it.name }}")
+
+        val groups = data.groups.map { group ->
+            val groupOpers = group.opers.map { oper ->
+                val req = oper.requirements
+                OperatorDisplayItem(
+                    name = oper.name,
+                    tags = buildOperatorTags(req, skill = oper.skill, showLevel = false)
+                )
+            }
+            group.name to groupOpers
         }
-        return parts.joinToString("\n")
+
+        return OperatorSummaryData(
+            operators = operators,
+            groups = groups,
+            totalCount = operators.size + groups.size
+        )
     }
 
-    private fun parseUserAdditional(_config: CopilotConfig): JsonElement {
+    private fun buildOperatorTags(
+        req: CopilotOperatorRequirements?,
+        skill: Int,
+        showLevel: Boolean
+    ): List<String> {
+        val tags = mutableListOf<String>()
+        if (showLevel && req != null && (req.elite > 0 || req.level > 0)) {
+            tags.add("精 ${req.elite} ${req.level}")
+        }
+        tags.add("技能 $skill")
+        if (req != null && req.skillLevel in 1..10) {
+            tags.add("Lv.${req.skillLevel}")
+        }
+        if (req != null && req.module >= 0) {
+            val moduleNames = arrayOf("χ", "γ", "α", "Δ")
+            when (req.module) {
+                0 -> tags.add("无模组")
+                in 1..4 -> tags.add("模组 ${moduleNames[req.module - 1]}")
+            }
+        }
+        return tags
+    }
+
+    private fun parseUserAdditional(config: CopilotConfig): JsonElement {
         // TODO: 恢复并重构“追加自定义干员”逻辑。
         return JsonArray(emptyList())
     }

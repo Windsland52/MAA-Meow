@@ -35,13 +35,13 @@ data class CopilotOperatorRequirements(
     @SerialName("elite")
     val elite: Int = 0,
     @SerialName("level")
-    val level: Int = 1,
+    val level: Int = 0,
     @SerialName("skill_level")
-    val skillLevel: Int = 1,
+    val skillLevel: Int = 0,
     @SerialName("module")
-    val module: Int = 0,
+    val module: Int = -1,
     @SerialName("potentiality")
-    val potentiality: Int = 1
+    val potentiality: Int = 0
 )
 
 /**
@@ -58,7 +58,7 @@ data class CopilotOperator(
     @SerialName("skill_times")
     val skillTimes: Int = 0,
     @SerialName("requirements")
-    val requirements: CopilotOperatorRequirements = CopilotOperatorRequirements()
+    val requirements: CopilotOperatorRequirements? = null
 )
 
 /**
