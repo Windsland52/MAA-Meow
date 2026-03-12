@@ -40,6 +40,7 @@ import com.aliothmoon.maameow.presentation.components.ResourceLoadingOverlay
 import com.aliothmoon.maameow.presentation.components.PlaceholderContent
 import com.aliothmoon.maameow.presentation.view.panel.PanelDialogType.ERROR
 import com.aliothmoon.maameow.presentation.view.panel.PanelDialogType.SUCCESS
+import com.aliothmoon.maameow.presentation.viewmodel.CopilotViewModel
 import com.aliothmoon.maameow.presentation.viewmodel.ExpandedControlPanelViewModel
 import org.koin.compose.koinInject
 
@@ -52,6 +53,7 @@ fun ExpandedControlPanel(
     isLocked: Boolean = false,
     onLockToggle: (Boolean) -> Unit = {},
     viewModel: ExpandedControlPanelViewModel = viewModel(),
+    copilotViewModel: CopilotViewModel = viewModel(),
     service: MaaCompositionService = koinInject(),
     appSettings: AppSettingsManager = koinInject()
 ) {
@@ -177,18 +179,20 @@ fun ExpandedControlPanel(
                     }
                 }
 
-                if (uiState.currentTab == PanelTab.TASKS) {
+                if (uiState.currentTab == PanelTab.TASKS || uiState.currentTab == PanelTab.AUTO_BATTLE) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 6.dp),
                         thickness = 1.dp,
                         color = Color.LightGray
                     )
-                    // 底部按钮（仅一键长草）
                     BottomButtons(
                         onClose = { onClose() },
                         onStart = {
                             focusManager.clearFocus()
-                            viewModel.onStartTasks()
+                            when (uiState.currentTab) {
+                                PanelTab.AUTO_BATTLE -> copilotViewModel.onStart()
+                                else -> viewModel.onStartTasks()
+                            }
                         },
                         isStarting = maaState == MaaExecutionState.STARTING
                     )

@@ -148,8 +148,7 @@ private fun TaskNodeRow(
 ) {
     Card(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) Color(0xfff2f3f5) else Color.White
         ),
@@ -158,7 +157,7 @@ private fun TaskNodeRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onSelected() }
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(horizontal = 4.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(
