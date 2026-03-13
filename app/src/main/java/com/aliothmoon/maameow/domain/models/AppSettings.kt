@@ -25,5 +25,7 @@ data class AppSettings(
 
     @PrefKey(default = "false") val closeAppOnTaskEnd: String = "false",
 
+    @PrefKey(default = "false") val useHardwareScreenOff: String = "false",
+
     @PrefKey(default = "STABLE") val updateChannel: String = "STABLE"
 )

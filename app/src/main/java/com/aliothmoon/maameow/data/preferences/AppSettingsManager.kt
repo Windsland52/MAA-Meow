@@ -213,6 +213,20 @@ class AppSettingsManager(private val context: Context) {
         }
     }
 
+    val useHardwareScreenOff: StateFlow<Boolean> = settings
+        .map { it.useHardwareScreenOff.toBooleanStrictOrNull() ?: false }
+        .distinctUntilChanged()
+        .stateIn(
+            scope, SharingStarted.Eagerly,
+            initialSettings.useHardwareScreenOff.toBooleanStrictOrNull() ?: false
+        )
+
+    suspend fun setUseHardwareScreenOff(enabled: Boolean) {
+        with(AppSettingsSchema) {
+            context.dataStore.edit { it[useHardwareScreenOff] = enabled.toString() }
+        }
+    }
+
     // 更新渠道
     val updateChannel: StateFlow<UpdateChannel> = settings
         .map {
