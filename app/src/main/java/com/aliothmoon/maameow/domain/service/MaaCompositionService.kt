@@ -39,12 +39,17 @@ class MaaCompositionService(
     private val unifiedStateDispatcher: UnifiedStateDispatcher,
     private val runtimeLogCenter: RuntimeLogCenter,
     private val activityManager: ActivityManager,
+    private val appWatchdog: AppWatchdog,
 ) : MaaExecutionStateHolder {
 
     private val _state = MutableStateFlow(MaaExecutionState.IDLE)
     val state: StateFlow<MaaExecutionState> = _state.asStateFlow()
 
     override fun reportRunState(state: MaaExecutionState) {
+        setRunState(state)
+    }
+
+    private fun setRunState(state: MaaExecutionState) {
         _state.value = state
     }
 
@@ -99,11 +104,22 @@ class MaaCompositionService(
     init {
         scope.launch {
             unifiedStateDispatcher.serviceDiedEvent.collect {
-                _state.value = MaaExecutionState.ERROR
+                appWatchdog.stopWatching()
+                setRunState(MaaExecutionState.ERROR)
                 runtimeLogCenter.completeSessionAndWait(
                     "SERVICE_DIED",
                     "远程服务异常终止",
                     LogLevel.ERROR
+                )
+            }
+        }
+
+        scope.launch {
+            appWatchdog.appDiedEvent.collect { packageName ->
+                Timber.w("App watchdog detected app died: %s", packageName)
+                runtimeLogCenter.appendAndWait(
+                    "游戏进程未启动或被异常关闭($packageName)",
+                    LogLevel.WARNING
                 )
             }
         }
@@ -131,7 +147,7 @@ class MaaCompositionService(
     }
 
     suspend fun start(tasks: List<MaaTaskParams>): StartResult {
-        _state.value = MaaExecutionState.STARTING
+        setRunState(MaaExecutionState.STARTING)
         val taskNames = tasks.map { it.type.value }
         runtimeLogCenter.startSession(taskNames)
         runtimeLogCenter.appendAndWait("开始执行任务，共 ${tasks.size} 项", LogLevel.INFO)
@@ -141,7 +157,7 @@ class MaaCompositionService(
             }
             val loaded = resourceLoader.ensureLoaded()
             if (loaded.isFailure) {
-                _state.value = MaaExecutionState.ERROR
+                setRunState(MaaExecutionState.ERROR)
                 runtimeLogCenter.appendAndWait("资源加载失败", LogLevel.ERROR)
                 runtimeLogCenter.endSessionAndWait("RESOURCE_ERROR")
                 return@withContext StartResult.ResourceError(loaded.exceptionOrNull())
@@ -150,7 +166,7 @@ class MaaCompositionService(
             if (mode == RunMode.FOREGROUND) {
                 val (width, height) = Misc.getScreenSize(applicationContext)
                 if (height > width) {
-                    _state.value = MaaExecutionState.ERROR
+                    setRunState(MaaExecutionState.ERROR)
                     runtimeLogCenter.appendAndWait("当前为竖屏，无法在前台模式运行", LogLevel.ERROR)
                     runtimeLogCenter.endSessionAndWait("PORTRAIT")
                     return@withContext StartResult.PortraitOrientationError
@@ -162,13 +178,13 @@ class MaaCompositionService(
                 if (!maa.hasInstance()) {
                     val ret = maa.CreateInstance(callback)
                     if (!ret) {
-                        _state.value = MaaExecutionState.ERROR
+                        setRunState(MaaExecutionState.ERROR)
                         runtimeLogCenter.appendAndWait("创建 MaaCore 实例失败", LogLevel.ERROR)
                         runtimeLogCenter.endSessionAndWait("CREATE_INSTANCE_ERROR")
                         return@useRemoteService StartResult.InitializationError(StartResult.InitializationError.InitPhase.CREATE_INSTANCE)
                     }
                     if (!maa.SetInstanceOption(TOUCH_MODE, ANDROID)) {
-                        _state.value = MaaExecutionState.ERROR
+                        setRunState(MaaExecutionState.ERROR)
                         runtimeLogCenter.appendAndWait("设置触控模式失败", LogLevel.ERROR)
                         runtimeLogCenter.endSessionAndWait("SET_TOUCH_MODE_ERROR")
                         return@useRemoteService StartResult.InitializationError(StartResult.InitializationError.InitPhase.SET_TOUCH_MODE)
@@ -177,14 +193,14 @@ class MaaCompositionService(
 
 
                 if (!it.setVirtualDisplayMode(mode.displayMode)) {
-                    _state.value = MaaExecutionState.ERROR
+                    setRunState(MaaExecutionState.ERROR)
                     runtimeLogCenter.appendAndWait("设置显示模式失败", LogLevel.ERROR)
                     runtimeLogCenter.endSessionAndWait("DISPLAY_MODE_ERROR")
                     return@useRemoteService StartResult.ConnectionError(StartResult.ConnectionError.ConnectPhase.DISPLAY_MODE)
                 }
                 val displayId = it.startVirtualDisplay()
                 if (displayId == -1) {
-                    _state.value = MaaExecutionState.ERROR
+                    setRunState(MaaExecutionState.ERROR)
                     runtimeLogCenter.appendAndWait("启动虚拟显示失败", LogLevel.ERROR)
                     runtimeLogCenter.endSessionAndWait("VIRTUAL_DISPLAY_ERROR")
                     return@useRemoteService StartResult.ConnectionError(StartResult.ConnectionError.ConnectPhase.VIRTUAL_DISPLAY)
@@ -212,7 +228,7 @@ class MaaCompositionService(
                 }
                 connectDeferred.set(null)
                 if (ret != true) {
-                    _state.value = MaaExecutionState.ERROR
+                    setRunState(MaaExecutionState.ERROR)
                     runtimeLogCenter.appendAndWait("启动 MaaCore 超时或失败", LogLevel.ERROR)
                     runtimeLogCenter.endSessionAndWait("MAA_CONNECT_ERROR")
                     return@useRemoteService StartResult.ConnectionError(StartResult.ConnectionError.ConnectPhase.MAA_CONNECT)
@@ -223,12 +239,13 @@ class MaaCompositionService(
                     maa.AppendTask(t.type.value, t.params)
                 }
                 if (!maa.Start()) {
-                    _state.value = MaaExecutionState.ERROR
+                    setRunState(MaaExecutionState.ERROR)
                     runtimeLogCenter.appendAndWait("MaaCore 启动失败", LogLevel.ERROR)
                     runtimeLogCenter.endSessionAndWait("START_ERROR")
                     return@useRemoteService StartResult.StartError
                 }
-                _state.value = MaaExecutionState.RUNNING
+                setRunState(MaaExecutionState.RUNNING)
+                appWatchdog.startWatching()
                 runtimeLogCenter.appendAndWait("任务开始运行", LogLevel.SUCCESS)
                 return@useRemoteService StartResult.Success(maa.GetVersion())
             }
@@ -236,7 +253,7 @@ class MaaCompositionService(
     }
 
     suspend fun startCopilot(task: MaaTaskParams): StartResult {
-        _state.value = MaaExecutionState.STARTING
+        setRunState(MaaExecutionState.STARTING)
         runtimeLogCenter.startSession(listOf(task.type.value))
         runtimeLogCenter.appendAndWait("开始执行自动战斗", LogLevel.INFO)
         return withContext(Dispatchers.IO) {
@@ -245,7 +262,7 @@ class MaaCompositionService(
             }
             val loaded = resourceLoader.ensureLoaded()
             if (loaded.isFailure) {
-                _state.value = MaaExecutionState.ERROR
+                setRunState(MaaExecutionState.ERROR)
                 runtimeLogCenter.appendAndWait("资源加载失败", LogLevel.ERROR)
                 runtimeLogCenter.endSessionAndWait("RESOURCE_ERROR")
                 return@withContext StartResult.ResourceError(loaded.exceptionOrNull())
@@ -254,7 +271,7 @@ class MaaCompositionService(
             if (mode == RunMode.FOREGROUND) {
                 val (width, height) = Misc.getScreenSize(applicationContext)
                 if (height > width) {
-                    _state.value = MaaExecutionState.ERROR
+                    setRunState(MaaExecutionState.ERROR)
                     runtimeLogCenter.appendAndWait("当前为竖屏,无法在前台模式运行", LogLevel.ERROR)
                     runtimeLogCenter.endSessionAndWait("PORTRAIT")
                     return@withContext StartResult.PortraitOrientationError
@@ -266,13 +283,13 @@ class MaaCompositionService(
                 if (!maa.hasInstance()) {
                     val ret = maa.CreateInstance(callback)
                     if (!ret) {
-                        _state.value = MaaExecutionState.ERROR
+                        setRunState(MaaExecutionState.ERROR)
                         runtimeLogCenter.appendAndWait("创建 MaaCore 实例失败", LogLevel.ERROR)
                         runtimeLogCenter.endSessionAndWait("CREATE_INSTANCE_ERROR")
                         return@useRemoteService StartResult.InitializationError(StartResult.InitializationError.InitPhase.CREATE_INSTANCE)
                     }
                     if (!maa.SetInstanceOption(TOUCH_MODE, ANDROID)) {
-                        _state.value = MaaExecutionState.ERROR
+                        setRunState(MaaExecutionState.ERROR)
                         runtimeLogCenter.appendAndWait("设置触控模式失败", LogLevel.ERROR)
                         runtimeLogCenter.endSessionAndWait("SET_TOUCH_MODE_ERROR")
                         return@useRemoteService StartResult.InitializationError(StartResult.InitializationError.InitPhase.SET_TOUCH_MODE)
@@ -280,14 +297,14 @@ class MaaCompositionService(
                 }
 
                 if (!it.setVirtualDisplayMode(mode.displayMode)) {
-                    _state.value = MaaExecutionState.ERROR
+                    setRunState(MaaExecutionState.ERROR)
                     runtimeLogCenter.appendAndWait("设置显示模式失败", LogLevel.ERROR)
                     runtimeLogCenter.endSessionAndWait("DISPLAY_MODE_ERROR")
                     return@useRemoteService StartResult.ConnectionError(StartResult.ConnectionError.ConnectPhase.DISPLAY_MODE)
                 }
                 val displayId = it.startVirtualDisplay()
                 if (displayId == -1) {
-                    _state.value = MaaExecutionState.ERROR
+                    setRunState(MaaExecutionState.ERROR)
                     runtimeLogCenter.appendAndWait("启动虚拟显示失败", LogLevel.ERROR)
                     runtimeLogCenter.endSessionAndWait("VIRTUAL_DISPLAY_ERROR")
                     return@useRemoteService StartResult.ConnectionError(StartResult.ConnectionError.ConnectPhase.VIRTUAL_DISPLAY)
@@ -315,7 +332,7 @@ class MaaCompositionService(
                 }
                 connectDeferred.set(null)
                 if (ret != true) {
-                    _state.value = MaaExecutionState.ERROR
+                    setRunState(MaaExecutionState.ERROR)
                     runtimeLogCenter.appendAndWait("启动 MaaCore 超时或失败", LogLevel.ERROR)
                     runtimeLogCenter.endSessionAndWait("MAA_CONNECT_ERROR")
                     return@useRemoteService StartResult.ConnectionError(StartResult.ConnectionError.ConnectPhase.MAA_CONNECT)
@@ -324,12 +341,13 @@ class MaaCompositionService(
                 runtimeLogCenter.appendToFileOnly("[TaskParams] ${task.type.value}: ${task.params}")
                 maa.AppendTask(task.type.value, task.params)
                 if (!maa.Start()) {
-                    _state.value = MaaExecutionState.ERROR
+                    setRunState(MaaExecutionState.ERROR)
                     runtimeLogCenter.appendAndWait("MaaCore 启动失败", LogLevel.ERROR)
                     runtimeLogCenter.endSessionAndWait("START_ERROR")
                     return@useRemoteService StartResult.StartError
                 }
-                _state.value = MaaExecutionState.RUNNING
+                setRunState(MaaExecutionState.RUNNING)
+                appWatchdog.startWatching()
                 runtimeLogCenter.appendAndWait("自动战斗开始运行", LogLevel.SUCCESS)
                 return@useRemoteService StartResult.Success(maa.GetVersion())
             }
@@ -356,7 +374,7 @@ class MaaCompositionService(
                 !maa.Running() || maa.Stop() -> StopResult.Success
                 else -> StopResult.Failed
             }.also {
-                _state.value = MaaExecutionState.IDLE
+                setRunState(MaaExecutionState.IDLE)
                 val status = if (it is StopResult.Success) "STOPPED" else "STOP_FAILED"
                 runtimeLogCenter.append(
                     "任务停止，状态: $status",
@@ -368,6 +386,7 @@ class MaaCompositionService(
     }
 
     suspend fun stopVirtualDisplay() {
+        appWatchdog.stopWatching()
         useRemoteService { it.stopVirtualDisplay() }
     }
 }

@@ -181,6 +181,28 @@ class RemoteServiceImpl : RemoteService.Stub() {
         AppOpsHelper.setPlayAudioOpAllowed(packageName, isAllowed)
     }
 
+    override fun isAppAlive(packageName: String): Int {
+        return try {
+            val process = Runtime.getRuntime().exec(arrayOf("pidof", packageName))
+            val exitCode = process.waitFor()
+            val output = process.inputStream.bufferedReader().readText().trim()
+            val errorOutput = process.errorStream.bufferedReader().readText().trim()
+            when (exitCode) {
+                0 if output.isNotEmpty() -> AppAliveStatus.ALIVE
+                1 if output.isEmpty() && errorOutput.isEmpty() -> AppAliveStatus.DEAD
+                else -> {
+                    Ln.w(
+                        "$TAG: isAppAlive unexpected result for $packageName: exitCode=$exitCode, stdout=$output, stderr=$errorOutput"
+                    )
+                    AppAliveStatus.UNKNOWN
+                }
+            }
+        } catch (e: Exception) {
+            Ln.w("isAppAlive check failed for $packageName", e)
+            AppAliveStatus.UNKNOWN
+        }
+    }
+
     override fun setVirtualDisplayMode(mode: Int): Boolean {
         when (mode) {
             DisplayMode.PRIMARY -> {

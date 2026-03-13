@@ -103,6 +103,7 @@ import com.aliothmoon.maameow.data.preferences.AppSettingsManager
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import com.aliothmoon.maameow.domain.service.AppWatchdog
 import com.aliothmoon.maameow.overlay.screensaver.ScreenSaverOverlayManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -120,7 +121,8 @@ fun BackgroundTaskView(
     dispatcher: UnifiedStateDispatcher = koinInject(),
     permissionManager: PermissionManager = koinInject(),
     appSettingsManager: AppSettingsManager = koinInject(),
-    screenSaverOverlayManager: ScreenSaverOverlayManager = koinInject()
+    screenSaverOverlayManager: ScreenSaverOverlayManager = koinInject(),
+    appWatchdog: AppWatchdog = koinInject(),
 ) {
     val coroutineScope = rememberCoroutineScope()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -129,6 +131,7 @@ fun BackgroundTaskView(
     val muteOnGameLaunch by appSettingsManager.muteOnGameLaunch.collectAsStateWithLifecycle()
     val closeAppOnTaskEnd by appSettingsManager.closeAppOnTaskEnd.collectAsStateWithLifecycle()
     val useHardwareScreenOff by appSettingsManager.useHardwareScreenOff.collectAsStateWithLifecycle()
+    val watchdogState by appWatchdog.state.collectAsStateWithLifecycle()
     var isRequestingRemoteAccess by remember { mutableStateOf(false) }
     var showCloseConfirm by remember { mutableStateOf(false) }
     var showMoreActions by remember { mutableStateOf(false) }
@@ -189,6 +192,12 @@ fun BackgroundTaskView(
     LaunchedEffect(Unit) {
         dispatcher.serviceDiedEvent.collect {
             Toast.makeText(context, "MaaService 异常关闭，请尝试重新启动", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        appWatchdog.appDiedEvent.collect {
+            Toast.makeText(context, "游戏进程未启动或被异常关闭", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -284,6 +293,7 @@ fun BackgroundTaskView(
                     VirtualDisplayPreview(
                         isRunning = maaState == MaaExecutionState.RUNNING,
                         isSurfaceAvailable = isSurfaceAvailable,
+                        watchdogState = watchdogState,
                         onClick = { viewModel.onToggleFullscreenMonitor() },
                         modifier = Modifier.fillMaxSize()
                     ) {
@@ -687,7 +697,8 @@ private fun BackgroundMoreActionsOverlay(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 64.dp)) {
+                .padding(start = 16.dp, end = 16.dp, bottom = 64.dp)
+        ) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -696,7 +707,8 @@ private fun BackgroundMoreActionsOverlay(
                 shape = RoundedCornerShape(8.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )) {
+                )
+            ) {
                 Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),

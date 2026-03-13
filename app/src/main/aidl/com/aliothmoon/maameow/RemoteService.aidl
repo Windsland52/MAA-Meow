@@ -46,4 +46,6 @@ interface RemoteService {
     oneway void setPlayAudioOpAllowed(String packageName, boolean isAllowed) = 21;
 
     int pid() = 22;
+
+    int isAppAlive(String packageName) = 23;
 }

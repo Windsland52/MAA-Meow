@@ -24,6 +24,7 @@ import com.aliothmoon.maameow.domain.service.CopilotManager
 import com.aliothmoon.maameow.domain.service.LogExportService
 import com.aliothmoon.maameow.domain.service.MaaCompositionService
 import com.aliothmoon.maameow.domain.service.MaaResourceLoader
+import com.aliothmoon.maameow.domain.service.AppWatchdog
 import com.aliothmoon.maameow.domain.service.ResourceInitService
 import com.aliothmoon.maameow.domain.service.RuntimeLogCenter
 import com.aliothmoon.maameow.domain.service.UnifiedStateDispatcher
@@ -92,6 +93,7 @@ val appModule = module {
     singleOf(::CopilotRuntimeStateStore)
     singleOf(::TaskChainHandler)
     singleOf(::SubTaskHandler)
+    singleOf(::AppWatchdog)
     singleOf(::MaaCompositionService)
     single<MaaExecutionStateHolder> { get<MaaCompositionService>() }
     singleOf(::MaaCallbackDispatcher)

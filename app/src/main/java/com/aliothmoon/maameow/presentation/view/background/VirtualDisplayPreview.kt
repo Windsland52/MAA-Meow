@@ -4,9 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -14,12 +20,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.aliothmoon.maameow.domain.service.AppWatchdog
 
 @Composable
 fun VirtualDisplayPreview(
     isRunning: Boolean,
     isSurfaceAvailable: Boolean,
+    watchdogState: AppWatchdog.WatchdogState,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
@@ -82,6 +92,37 @@ fun VirtualDisplayPreview(
                             )
                         }
                     }
+                }
+
+                // 看门狗状态指示器
+                val (dotColor, label) = when (watchdogState) {
+                    AppWatchdog.WatchdogState.WATCHING -> Color(0xFF4CAF50) to "游戏运行中"
+                    AppWatchdog.WatchdogState.APP_DIED -> Color(0xFFF44336) to "游戏终止"
+                    AppWatchdog.WatchdogState.IDLE -> Color(0xFF9E9E9E) to "待机"
+                }
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .background(
+                            Color.Black.copy(alpha = 0.5f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(dotColor)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White
+                    )
                 }
             }
         }
