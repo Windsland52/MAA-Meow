@@ -1,26 +1,20 @@
 package com.aliothmoon.maameow.remote
 
-import android.os.Build
 import android.os.Process
-import android.view.Display
 import android.view.Surface
 import com.aliothmoon.maameow.MaaCoreService
 import com.aliothmoon.maameow.RemoteService
 import com.aliothmoon.maameow.bridge.NativeBridgeLib
-import com.aliothmoon.maameow.constant.AndroidVersions
 import com.aliothmoon.maameow.constant.DefaultDisplayConfig
 import com.aliothmoon.maameow.constant.DisplayMode
 import com.aliothmoon.maameow.maa.InputControlUtils
-import com.aliothmoon.maameow.maa.MaaCoreLibrary
+import com.aliothmoon.maameow.remote.internal.AppOpsHelper
+import com.aliothmoon.maameow.remote.internal.PowerController
 import com.aliothmoon.maameow.remote.internal.PrimaryDisplayManager
+import com.aliothmoon.maameow.remote.internal.ScreenManager
 import com.aliothmoon.maameow.remote.internal.VirtualDisplayManager
 import com.aliothmoon.maameow.third.Ln
 import com.aliothmoon.maameow.third.Workarounds
-import com.aliothmoon.maameow.third.wrappers.DisplayControl
-import com.aliothmoon.maameow.third.wrappers.ServiceManager
-import com.aliothmoon.maameow.third.wrappers.SurfaceControl
-import com.sun.jna.Native
-import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.system.exitProcess
 
@@ -29,65 +23,40 @@ class RemoteServiceImpl : RemoteService.Stub() {
     companion object {
         private const val TAG = "RemoteService"
 
-        val MaaContext: MaaCoreLibrary? = run {
+        @JvmStatic
+        fun performEmergencyCleanup() {
+            Ln.i("$TAG: performEmergencyCleanup triggered")
             runCatching {
-                System.setProperty("jna.tmpdir", "/data/local/tmp")
-                Ln.i("$TAG: Loading MaaCore...")
-                Native.load("MaaCore", MaaCoreLibrary::class.java).also {
-                    Ln.i("$TAG: MaaCore loaded successfully")
-                }
+                PowerController.destroy()
+                ScreenManager.destroy()
+                MaaCoreManager.destroy()
             }.onFailure {
-                Ln.e("$TAG: Failed to load MaaCore: ${it.message}")
-                Ln.e(it.stackTraceToString())
-            }.getOrNull()
-        }
-
-        private val maaService = MaaCoreServiceImpl(MaaContext)
-    }
-
-
-    private val _flag = File("/data/local/tmp/maa_screen_flag")
-
-    private var flag: Boolean
-        get() = runCatching { _flag.exists() }.onFailure {
-            Ln.e("$TAG: Failed to check if alive flag file exists: ${it.message}")
-            Ln.e(it.stackTraceToString())
-        }.getOrDefault(false)
-        set(value) {
-            runCatching {
-                if (value) {
-                    _flag.parentFile?.mkdirs()
-                    _flag.createNewFile()
-                } else {
-                    _flag.delete()
-                }
-            }.onFailure {
-                Ln.e("$TAG: Failed to set alive flag file: ${it.message}")
-                Ln.e(it.stackTraceToString())
+                Ln.e("$TAG: Emergency cleanup failed: ${it.message}")
             }
         }
+    }
 
-    private val virtualDisplayMode = AtomicInteger(0)
-
+    private val virtualDisplayMode = AtomicInteger(DisplayMode.PRIMARY)
     private var setup = false
+
+    init {
+        Ln.i("$TAG: RemoteServiceImpl init, version: ${MaaCoreManager.maaService.GetVersion()}")
+    }
 
     override fun destroy() {
         Ln.i("$TAG: destroy()")
-        maaService.DestroyInstance()
-        if (flag) {
-            clearForcedDisplaySize()
-        }
+        performEmergencyCleanup()
         exitProcess(0)
     }
 
     override fun exit() = destroy()
 
     override fun getMaaCoreService(): MaaCoreService {
-        return maaService
+        return MaaCoreManager.maaService
     }
 
     override fun version(): String {
-        val maaVersion = MaaContext?.AsstGetVersion() ?: "Not loaded"
+        val maaVersion = MaaCoreManager.MaaContext?.AsstGetVersion() ?: "Not loaded"
         return """
             ==== Build Info ====
             BridgeInfo: ${NativeBridgeLib.ping()}
@@ -99,13 +68,12 @@ class RemoteServiceImpl : RemoteService.Stub() {
     override fun pid(): Int = Process.myPid()
 
     override fun setup(userDir: String?, isDebug: Boolean): Boolean {
-        val result = NativeBridgeLib.ping()
         if (!setup) {
-            val ctx = MaaContext ?: run {
+            val ctx = MaaCoreManager.MaaContext ?: run {
                 Ln.e("$TAG: setup failed - MaaContext is null")
                 return false
             }
-            Ln.i("NativeBridgeLib ping $result")
+            Ln.i("NativeBridgeLib ping ${NativeBridgeLib.ping()}")
             with(ctx) {
                 if (!AsstSetUserDir(userDir)) {
                     Ln.e("$TAG: setup failed - AsstSetUserDir($userDir) returned false")
@@ -118,6 +86,7 @@ class RemoteServiceImpl : RemoteService.Stub() {
                 }
             }
             Workarounds.apply()
+            setup = true
         }
         return true
     }
@@ -126,18 +95,14 @@ class RemoteServiceImpl : RemoteService.Stub() {
     }
 
     override fun screencap(width: Int, height: Int) {
-
     }
 
     override fun setForcedDisplaySize(width: Int, height: Int): Boolean {
-        flag = true
-        return ServiceManager.getWindowManager()
-            .setForcedDisplaySize(Display.DEFAULT_DISPLAY, width, height)
+        return ScreenManager.setForcedDisplaySize(width, height)
     }
 
     override fun clearForcedDisplaySize(): Boolean {
-        flag = false
-        return ServiceManager.getWindowManager().clearForcedDisplaySize(Display.DEFAULT_DISPLAY)
+        return ScreenManager.clearForcedDisplaySize()
     }
 
     override fun grantPermissions(request: PermissionGrantRequest): PermissionStateInfo {
@@ -168,9 +133,7 @@ class RemoteServiceImpl : RemoteService.Stub() {
     }
 
     override fun touchDown(x: Int, y: Int) {
-        if (virtualDisplayMode.get() == DisplayMode.PRIMARY) {
-            return
-        }
+        if (virtualDisplayMode.get() == DisplayMode.PRIMARY) return
         val displayId = VirtualDisplayManager.getDisplayId()
         if (displayId != DefaultDisplayConfig.DISPLAY_NONE) {
             InputControlUtils.down(x, y, displayId)
@@ -178,9 +141,7 @@ class RemoteServiceImpl : RemoteService.Stub() {
     }
 
     override fun touchMove(x: Int, y: Int) {
-        if (virtualDisplayMode.get() == DisplayMode.PRIMARY) {
-            return
-        }
+        if (virtualDisplayMode.get() == DisplayMode.PRIMARY) return
         val displayId = VirtualDisplayManager.getDisplayId()
         if (displayId != DefaultDisplayConfig.DISPLAY_NONE) {
             InputControlUtils.move(x, y, displayId)
@@ -188,9 +149,7 @@ class RemoteServiceImpl : RemoteService.Stub() {
     }
 
     override fun touchUp(x: Int, y: Int) {
-        if (virtualDisplayMode.get() == DisplayMode.PRIMARY) {
-            return
-        }
+        if (virtualDisplayMode.get() == DisplayMode.PRIMARY) return
         val displayId = VirtualDisplayManager.getDisplayId()
         if (displayId != DefaultDisplayConfig.DISPLAY_NONE) {
             InputControlUtils.up(x, y, displayId)
@@ -198,58 +157,7 @@ class RemoteServiceImpl : RemoteService.Stub() {
     }
 
     override fun setDisplayPower(on: Boolean) {
-        setDisplayPowerInternal(on)
-    }
-
-    private fun setDisplayPowerInternal(on: Boolean): Boolean {
-        var applyToMultiPhysicalDisplays =
-            Build.VERSION.SDK_INT >= AndroidVersions.API_29_ANDROID_10
-
-        if (applyToMultiPhysicalDisplays
-            && Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14 && Build.BRAND.equals(
-                "honor",
-                ignoreCase = true
-            )
-            && SurfaceControl.hasGetBuildInDisplayMethod()
-        ) {
-            // Workaround for Honor devices with Android 14:
-            //  - <https://github.com/Genymobile/scrcpy/issues/4823>
-            //  - <https://github.com/Genymobile/scrcpy/issues/4943>
-            applyToMultiPhysicalDisplays = false
-        }
-
-        val mode: Int =
-            if (on) SurfaceControl.POWER_MODE_NORMAL else SurfaceControl.POWER_MODE_OFF
-        if (applyToMultiPhysicalDisplays) {
-            // On Android 14, these internal methods have been moved to DisplayControl
-            val useDisplayControl =
-                Build.VERSION.SDK_INT >= AndroidVersions.API_34_ANDROID_14 && !SurfaceControl.hasGetPhysicalDisplayIdsMethod()
-
-            // Change the power mode for all physical displays
-            val physicalDisplayIds =
-                if (useDisplayControl) DisplayControl.getPhysicalDisplayIds() else SurfaceControl.getPhysicalDisplayIds()
-            if (physicalDisplayIds == null) {
-                Ln.e("Could not get physical display ids")
-                return false
-            }
-
-            var allOk = true
-            for (physicalDisplayId in physicalDisplayIds) {
-                val binder = if (useDisplayControl) DisplayControl.getPhysicalDisplayToken(
-                    physicalDisplayId
-                ) else SurfaceControl.getPhysicalDisplayToken(physicalDisplayId)
-                allOk = allOk and SurfaceControl.setDisplayPowerMode(binder, mode)
-            }
-            return allOk
-        }
-
-        // Older Android versions, only 1 display
-        val d = SurfaceControl.getBuiltInDisplay()
-        if (d == null) {
-            Ln.e("Could not get built-in display")
-            return false
-        }
-        return SurfaceControl.setDisplayPowerMode(d, mode)
+        PowerController.setDisplayPower(on)
     }
 
     override fun startVirtualDisplay(): Int {
@@ -270,16 +178,7 @@ class RemoteServiceImpl : RemoteService.Stub() {
     }
 
     override fun setPlayAudioOpAllowed(packageName: String?, isAllowed: Boolean) {
-        if (packageName.isNullOrBlank()) return
-        val op = if (isAllowed) "allow" else "deny"
-        try {
-            val process = Runtime.getRuntime()
-                .exec(arrayOf("sh", "-c", "appops set $packageName PLAY_AUDIO $op"))
-            val exitCode = process.waitFor()
-            Ln.i("$TAG: appops set $packageName PLAY_AUDIO $op -> exitCode=$exitCode")
-        } catch (e: Exception) {
-            Ln.e("$TAG: setPlayAudioOpAllowed failed: ${e.message}")
-        }
+        AppOpsHelper.setPlayAudioOpAllowed(packageName, isAllowed)
     }
 
     override fun setVirtualDisplayMode(mode: Int): Boolean {

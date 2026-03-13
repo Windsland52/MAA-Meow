@@ -35,7 +35,7 @@ public final class RootServiceStarter {
             return;
         }
 
-        if (!sendBinder(parsed.packageName, parsed.token, service)) {
+        if (!sendBinder(parsed.packageName, parsed.token, parsed.className, service)) {
             System.exit(1);
             return;
         }
@@ -105,7 +105,7 @@ public final class RootServiceStarter {
         }
     }
 
-    private static boolean sendBinder(String packageName, String token, IBinder binder) {
+    private static boolean sendBinder(String packageName, String token, String className, IBinder binder) {
         try {
             Bundle extras = new Bundle();
             extras.putString(RootServiceBootstrapRegistry.KEY_TOKEN, token);
@@ -130,8 +130,17 @@ public final class RootServiceStarter {
             }
 
             lifecycle.linkToDeath(() -> {
-                Timber.tag(TAG).i("app process died, exiting root service");
-                System.exit(0);
+                Timber.tag(TAG).i("app process died, performing cleanup before exiting root service");
+                try {
+                    Class<?> serviceClass = FakeContext.get().getClassLoader().loadClass(className);
+                    Method cleanupMethod = serviceClass.getMethod("performEmergencyCleanup");
+                    cleanupMethod.invoke(null);
+                } catch (Throwable tr) {
+                    Timber.tag(TAG).e(tr, "Failed to execute emergency cleanup");
+                } finally {
+                    Timber.tag(TAG).i("cleanup done, exiting root service");
+                    System.exit(0);
+                }
             }, 0);
             return true;
         } catch (Throwable tr) {
