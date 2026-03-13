@@ -7,7 +7,7 @@ import androidx.core.graphics.toColorInt
  */
 data class BorderStyle(
     /** 边框宽度 (dp) */
-    val widthDp: Float = 4f,
+    val widthDp: Float = 2f,
     /** 渐变颜色列表 */
     val colors: IntArray = DEFAULT_RAINBOW_COLORS,
     /** 动画一圈的时长 (毫秒) */

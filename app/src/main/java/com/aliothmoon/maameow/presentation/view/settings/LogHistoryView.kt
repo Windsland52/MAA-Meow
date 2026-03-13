@@ -18,8 +18,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.AlertDialog
+import com.aliothmoon.maameow.presentation.components.AdaptiveTaskPromptDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -117,23 +120,19 @@ private fun LogFileListView(
 
     // 删除确认弹窗
     showDeleteConfirm?.let { logFile ->
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = null },
-            title = { Text("确认删除") },
-            text = { Text("确定要删除日志文件 ${logFile.displayTime} 吗？") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onFileDelete(logFile)
-                    showDeleteConfirm = null
-                }) {
-                    Text("删除")
-                }
+        AdaptiveTaskPromptDialog(
+            visible = true,
+            title = "确认删除",
+            message = "确定要删除日志文件 ${logFile.displayTime} 吗？",
+            onConfirm = {
+                onFileDelete(logFile)
+                showDeleteConfirm = null
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = null }) {
-                    Text("取消")
-                }
-            }
+            onDismissRequest = { showDeleteConfirm = null },
+            confirmText = "删除",
+            dismissText = "取消",
+            icon = Icons.Rounded.Delete,
+            confirmColor = MaterialTheme.colorScheme.error
         )
     }
 

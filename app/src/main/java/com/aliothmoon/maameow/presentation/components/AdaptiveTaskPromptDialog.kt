@@ -18,24 +18,27 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
@@ -52,21 +55,28 @@ enum class TaskPromptButtonLayout {
     VERTICAL,
 }
 
+/**
+ * 适配型任务提示对话框
+ * 支持在前台 Activity 和悬浮窗 Overlay 环境下自动切换样式
+ */
 @Composable
 fun AdaptiveTaskPromptDialog(
     visible: Boolean,
     title: String,
-    message: AnnotatedString,
+    message: Any? = null, // 支持 String 或 AnnotatedString
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit,
     confirmText: String = "确认",
-    dismissText: String? = "关闭",
-    icon: ImageVector? = null,
+    dismissText: String? = "取消",
+    neutralText: String? = null,
+    onNeutralClick: () -> Unit = {},
+    icon: ImageVector? = null, // 仅支持 ImageVector
     confirmColor: Color? = null,
     iconTint: Color? = null,
     buttonLayout: TaskPromptButtonLayout = TaskPromptButtonLayout.HORIZONTAL,
-    maxWidth: Dp = 360.dp,
+    maxWidth: Dp = 320.dp,
     dismissOnOutsideClick: Boolean = true,
+    content: @Composable (() -> Unit)? = null
 ) {
     if (!visible) return
 
@@ -81,12 +91,15 @@ fun AdaptiveTaskPromptDialog(
             onConfirm = onConfirm,
             confirmText = confirmText,
             dismissText = dismissText,
+            neutralText = neutralText,
+            onNeutralClick = onNeutralClick,
             icon = icon,
             iconTint = resolvedIconTint,
             confirmColor = resolvedConfirmColor,
             buttonLayout = buttonLayout,
             maxWidth = maxWidth,
             dismissOnOutsideClick = dismissOnOutsideClick,
+            content = content
         )
     } else {
         MaterialTaskPromptDialog(
@@ -96,12 +109,15 @@ fun AdaptiveTaskPromptDialog(
             onConfirm = onConfirm,
             confirmText = confirmText,
             dismissText = dismissText,
+            neutralText = neutralText,
+            onNeutralClick = onNeutralClick,
             icon = icon,
             iconTint = resolvedIconTint,
             confirmColor = resolvedConfirmColor,
             buttonLayout = buttonLayout,
             maxWidth = maxWidth,
             dismissOnOutsideClick = dismissOnOutsideClick,
+            content = content
         )
     }
 }
@@ -109,17 +125,20 @@ fun AdaptiveTaskPromptDialog(
 @Composable
 private fun FloatingTaskPromptDialog(
     title: String,
-    message: AnnotatedString,
+    message: Any?,
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit,
     confirmText: String,
     dismissText: String?,
+    neutralText: String?,
+    onNeutralClick: () -> Unit,
     icon: ImageVector?,
     iconTint: Color,
     confirmColor: Color,
     buttonLayout: TaskPromptButtonLayout,
     maxWidth: Dp,
     dismissOnOutsideClick: Boolean,
+    content: @Composable (() -> Unit)?
 ) {
     val overlayInteractionSource = remember { MutableInteractionSource() }
     val cardInteractionSource = remember { MutableInteractionSource() }
@@ -132,7 +151,7 @@ private fun FloatingTaskPromptDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.45f))
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
                 .clickable(
                     indication = null,
                     interactionSource = overlayInteractionSource,
@@ -156,6 +175,8 @@ private fun FloatingTaskPromptDialog(
                     onConfirm = onConfirm,
                     confirmText = confirmText,
                     dismissText = dismissText,
+                    neutralText = neutralText,
+                    onNeutralClick = onNeutralClick,
                     icon = icon,
                     iconTint = iconTint,
                     confirmColor = confirmColor,
@@ -168,6 +189,7 @@ private fun FloatingTaskPromptDialog(
                             interactionSource = cardInteractionSource,
                             onClick = {},
                         ),
+                    content = content
                 )
             }
         }
@@ -177,17 +199,20 @@ private fun FloatingTaskPromptDialog(
 @Composable
 private fun MaterialTaskPromptDialog(
     title: String,
-    message: AnnotatedString,
+    message: Any?,
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit,
     confirmText: String,
     dismissText: String?,
+    neutralText: String?,
+    onNeutralClick: () -> Unit,
     icon: ImageVector?,
     iconTint: Color,
     confirmColor: Color,
     buttonLayout: TaskPromptButtonLayout,
     maxWidth: Dp,
     dismissOnOutsideClick: Boolean,
+    content: @Composable (() -> Unit)?
 ) {
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -204,12 +229,15 @@ private fun MaterialTaskPromptDialog(
             onConfirm = onConfirm,
             confirmText = confirmText,
             dismissText = dismissText,
+            neutralText = neutralText,
+            onNeutralClick = onNeutralClick,
             icon = icon,
             iconTint = iconTint,
             confirmColor = confirmColor,
             buttonLayout = buttonLayout,
             maxWidth = maxWidth,
             modifier = Modifier.padding(horizontal = 24.dp),
+            content = content
         )
     }
 }
@@ -217,74 +245,105 @@ private fun MaterialTaskPromptDialog(
 @Composable
 private fun TaskPromptCard(
     title: String,
-    message: AnnotatedString,
+    message: Any?,
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit,
     confirmText: String,
     dismissText: String?,
+    neutralText: String?,
+    onNeutralClick: () -> Unit,
     icon: ImageVector?,
     iconTint: Color,
     confirmColor: Color,
     buttonLayout: TaskPromptButtonLayout,
     maxWidth: Dp,
     modifier: Modifier = Modifier,
+    content: @Composable (() -> Unit)?
 ) {
-    Card(
+    Surface(
         modifier = modifier
-            .fillMaxWidth()
             .widthIn(max = maxWidth)
-            .wrapContentHeight()
-            .shadow(8.dp, RoundedCornerShape(8.dp)),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            .wrapContentHeight(),
+        shape = RoundedCornerShape(8.dp), // 保持 8dp 圆角风格
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.Start,
         ) {
-            icon?.let {
-                Box(
-                    modifier = Modifier
-                        .height(40.dp)
-                        .background(
-                            color = iconTint.copy(alpha = 0.1f),
-                            shape = CircleShape,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                icon?.let {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                color = iconTint.copy(alpha = 0.12f),
+                                shape = CircleShape,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = it,
+                            contentDescription = null,
+                            tint = iconTint,
+                            modifier = Modifier.size(20.dp)
                         )
-                        .padding(horizontal = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = it,
-                        contentDescription = null,
-                        tint = iconTint,
-                    )
+                    }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier.weight(1f)
+                )
             }
 
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-            )
+            if (message != null || content != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            if (content != null) {
+                content()
+            } else if (message != null) {
+                when (message) {
+                    is AnnotatedString -> {
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Start,
+                        )
+                    }
 
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Start,
-            )
+                    else -> {
+                        Text(
+                            text = message.toString(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Start,
+                        )
+                    }
+                }
+            }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             TaskPromptButtons(
                 onDismissRequest = onDismissRequest,
                 onConfirm = onConfirm,
                 confirmText = confirmText,
                 dismissText = dismissText,
+                neutralText = neutralText,
+                onNeutralClick = onNeutralClick,
                 confirmColor = confirmColor,
                 buttonLayout = buttonLayout,
             )
@@ -298,59 +357,48 @@ private fun TaskPromptButtons(
     onConfirm: () -> Unit,
     confirmText: String,
     dismissText: String?,
+    neutralText: String?,
+    onNeutralClick: () -> Unit,
     confirmColor: Color,
     buttonLayout: TaskPromptButtonLayout,
 ) {
-    if (buttonLayout == TaskPromptButtonLayout.VERTICAL) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Button(
-                onClick = onConfirm,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = confirmColor,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-            ) {
-                Text(confirmText)
-            }
-            dismissText?.let {
-                OutlinedButton(
-                    onClick = onDismissRequest,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(it)
-                }
-            }
-        }
-        return
-    }
-
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        dismissText?.let {
-            OutlinedButton(
-                onClick = onDismissRequest,
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-            ) {
-                Text(it)
-            }
-        }
+        // 主操作按钮：Filled
         Button(
             onClick = onConfirm,
-            modifier = if (dismissText != null) Modifier.weight(1f) else Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
             colors = ButtonDefaults.buttonColors(
                 containerColor = confirmColor,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
         ) {
             Text(confirmText)
+        }
+
+        // 中性/次要按钮：Outlined
+        neutralText?.let {
+            OutlinedButton(
+                onClick = onNeutralClick,
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large
+            ) {
+                Text(it)
+            }
+        }
+
+        // 取消/辅助按钮：Text
+        dismissText?.let {
+            TextButton(
+                onClick = onDismissRequest,
+                shape = MaterialTheme.shapes.large
+            ) {
+                Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }

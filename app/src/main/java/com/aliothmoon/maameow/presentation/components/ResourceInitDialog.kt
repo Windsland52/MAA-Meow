@@ -5,14 +5,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,7 +44,7 @@ fun ResourceInitDialog(
                 )
             ) {
                 Surface(
-                    shape = MaterialTheme.shapes.large,
+                    shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 6.dp
                 ) {
@@ -101,30 +101,16 @@ fun ResourceInitDialog(
 
         is ResourceInitState.Failed -> {
             // 失败弹窗
-            AlertDialog(
+            AdaptiveTaskPromptDialog(
+                visible = true,
+                title = "初始化失败",
+                message = "资源初始化失败: ${state.message}\n\n请检查存储空间是否充足，然后重试。",
+                onConfirm = onRetry,
                 onDismissRequest = onDismiss,
-                title = { Text("初始化失败") },
-                text = {
-                    Column {
-                        Text("资源初始化失败: ${state.message}")
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "请检查存储空间是否充足，然后重试。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = onRetry) {
-                        Text("重试")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = onDismiss) {
-                        Text("取消")
-                    }
-                }
+                confirmText = "重试",
+                dismissText = "取消",
+                icon = Icons.Rounded.Warning,
+                confirmColor = MaterialTheme.colorScheme.error
             )
         }
 
@@ -142,34 +128,15 @@ fun ReInitializeConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    AdaptiveTaskPromptDialog(
+        visible = true,
+        title = "重新初始化资源",
+        message = "确定要重新初始化资源吗？\n\n这将删除现有资源并重新从内置资源包解压。如果您已更新过资源，更新的内容将被覆盖。",
+        onConfirm = onConfirm,
         onDismissRequest = onDismiss,
-        title = { Text("重新初始化资源") },
-        text = {
-            Column {
-                Text("确定要重新初始化资源吗？")
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "这将删除现有资源并重新从内置资源包解压。如果您已更新过资源，更新的内容将被覆盖。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Text("确认重新初始化")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        }
+        confirmText = "确认重新初始化",
+        dismissText = "取消",
+        icon = Icons.Rounded.Refresh,
+        confirmColor = MaterialTheme.colorScheme.error
     )
 }

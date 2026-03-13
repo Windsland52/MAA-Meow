@@ -17,6 +17,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -50,6 +51,7 @@ import com.aliothmoon.maameow.domain.models.RemoteBackend
 import com.aliothmoon.maameow.domain.service.LogExportService
 import com.aliothmoon.maameow.domain.service.ResourceInitService
 import com.aliothmoon.maameow.domain.state.ResourceInitState
+import com.aliothmoon.maameow.presentation.components.AdaptiveTaskPromptDialog
 import com.aliothmoon.maameow.presentation.components.InfoCard
 import com.aliothmoon.maameow.presentation.components.ReInitializeConfirmDialog
 import com.aliothmoon.maameow.presentation.components.ResourceInitDialog
@@ -90,33 +92,18 @@ fun SettingsView(
     }
 
     if (showDebugModeConfirm) {
-        AlertDialog(
+        AdaptiveTaskPromptDialog(
+            visible = true,
+            title = "启用调试模式",
+            message = "启用调试模式后将重启服务以记录详细日志。\n\n请在重启后重新操作以复现问题，相关日志将被完整记录。",
+            onConfirm = {
+                showDebugModeConfirm = false
+                viewModel.setDebugMode(true)
+            },
             onDismissRequest = { showDebugModeConfirm = false },
-            title = {
-                Text(
-                    text = "启用调试模式",
-                    style = MaterialTheme.typography.titleMedium
-                )
-            },
-            text = {
-                Text(
-                    text = "启用调试模式后将重启服务以记录详细日志。\n\n请在重启后重新操作以复现问题，相关日志将被完整记录。",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                Button(onClick = {
-                    showDebugModeConfirm = false
-                    viewModel.setDebugMode(true)
-                }) {
-                    Text("确认重启")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showDebugModeConfirm = false }) {
-                    Text("取消")
-                }
-            }
+            confirmText = "确认重启",
+            dismissText = "取消",
+            icon = Icons.Rounded.Build
         )
     }
 

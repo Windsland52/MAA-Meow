@@ -169,11 +169,11 @@ fun ExpandedControlPanel(
                         }
 
                         3 -> { // PanelTab.LOG
-                            val logs by viewModel.runtimeLogs.collectAsStateWithLifecycle()
+                            val runtimeLogs by viewModel.runtimeLogs.collectAsStateWithLifecycle()
                             LogPanel(
-                                logs = logs,
-                                onClearLogs = viewModel::onClearLogs,
-                                modifier = Modifier.fillMaxSize()
+                                logs = runtimeLogs,
+                                onClearLogs = { viewModel.onClearLogs() },
+                                onClose = { viewModel.onTabChange(PanelTab.TASKS) }
                             )
                         }
                     }

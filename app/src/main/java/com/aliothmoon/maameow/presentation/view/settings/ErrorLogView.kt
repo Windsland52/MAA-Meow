@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.aliothmoon.maameow.presentation.components.AdaptiveTaskPromptDialog
 import com.aliothmoon.maameow.presentation.components.TopAppBar
 import com.aliothmoon.maameow.presentation.viewmodel.ErrorLogViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -112,23 +114,19 @@ private fun ErrorLogFileListView(
 
     // 清空确认弹窗
     if (showCleanupConfirm) {
-        AlertDialog(
-            onDismissRequest = { showCleanupConfirm = false },
-            title = { Text("确认清空") },
-            text = { Text("确定要清空所有错误日志吗？此操作不可撤销。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onCleanup()
-                    showCleanupConfirm = false
-                }) {
-                    Text("清空")
-                }
+        AdaptiveTaskPromptDialog(
+            visible = true,
+            title = "确认清空",
+            message = "确定要清空所有错误日志吗？此操作不可撤销。",
+            onConfirm = {
+                onCleanup()
+                showCleanupConfirm = false
             },
-            dismissButton = {
-                TextButton(onClick = { showCleanupConfirm = false }) {
-                    Text("取消")
-                }
-            }
+            onDismissRequest = { showCleanupConfirm = false },
+            confirmText = "清空",
+            dismissText = "取消",
+            icon = Icons.Rounded.Delete,
+            confirmColor = MaterialTheme.colorScheme.error
         )
     }
 

@@ -1,12 +1,9 @@
 package com.aliothmoon.maameow.presentation.components
 
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun ShizukuPermissionDialog(
@@ -15,34 +12,16 @@ fun ShizukuPermissionDialog(
     isRequesting: Boolean,
     onConfirm: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = {},
-        properties = DialogProperties(
-            dismissOnBackPress = false,
-            dismissOnClickOutside = false,
-        ),
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-            )
-        },
-        text = {
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                enabled = !isRequesting,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                ),
-            ) {
-                Text(if (isRequesting) "授权中..." else "立即授权")
-            }
-        },
+    AdaptiveTaskPromptDialog(
+        visible = true,
+        title = title,
+        message = message,
+        onConfirm = onConfirm,
+        onDismissRequest = {}, // 不允许通过关闭请求取消
+        dismissOnOutsideClick = false,
+        confirmText = if (isRequesting) "授权中..." else "立即授权",
+        dismissText = null,
+        icon = Icons.Rounded.Build,
+        confirmColor = MaterialTheme.colorScheme.primary
     )
 }

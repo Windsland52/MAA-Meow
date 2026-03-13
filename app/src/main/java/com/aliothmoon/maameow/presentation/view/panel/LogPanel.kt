@@ -5,37 +5,45 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -43,102 +51,115 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aliothmoon.maameow.data.model.LogItem
+import com.aliothmoon.maameow.presentation.components.AdaptiveTaskPromptDialog
 
 /**
  * 日志面板
- * 参考 MaaWPFGUI 的日志实现，提供可滚动的日志列表
- * 支持点击查看详情、自动滚动、日志过滤
+ * 以浮层形式显示任务执行日志
  */
 @Composable
 fun LogPanel(
     logs: List<LogItem>,
     onClearLogs: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClose: () -> Unit
 ) {
     val listState = rememberLazyListState()
-    var selectedLogItem by remember { mutableStateOf<LogItem?>(null) }
-    val shouldAutoFollow by remember {
-        derivedStateOf {
-            val total = listState.layoutInfo.totalItemsCount
-            if (total == 0) {
-                true
-            } else {
-                val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-                (total - 1 - lastVisible) <= 2
-            }
-        }
-    }
+    var isAutoScroll by remember { mutableStateOf(true) }
+    var selectedLog by remember { mutableStateOf<LogItem?>(null) }
 
-    // 仅在接近底部时自动跟随，避免用户回看历史被强制拉回底部
+    // 自动滚动到最新日志
     LaunchedEffect(logs.size) {
-        if (logs.isNotEmpty() && shouldAutoFollow) {
-            listState.scrollToItem(logs.size - 1)
+        if (isAutoScroll && logs.isNotEmpty()) {
+            listState.animateScrollToItem(logs.size - 1)
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color(0xFFFAFAFA))
-    ) {
-        // 工具栏
+    // 检测用户手动滚动以停止自动滚动
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress) {
+            isAutoScroll = false
+        }
+    }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        // 顶部工具栏
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "共 ${logs.size} 条日志",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            IconButton(
-                onClick = onClearLogs,
-                modifier = Modifier.size(28.dp)
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "清空日志",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
+                    imageVector = Icons.AutoMirrored.Rounded.List,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "任务日志",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Row {
+                IconButton(onClick = onClearLogs) {
+                    Icon(
+                        imageVector = Icons.Rounded.Delete,
+                        contentDescription = "清空",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = onClose) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "关闭",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
-        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
         // 日志列表
-        if (logs.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "暂无日志",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
+        Box(modifier = Modifier.weight(1f)) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(4.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(
                     items = logs,
                     key = { it.id }
                 ) { logItem ->
-                    LogItemRow(
+                    LogLine(
                         logItem = logItem,
-                        onClick = if (logItem.hasDetails) {
-                            { selectedLogItem = logItem }
-                        } else null
+                        onClick = { selectedLog = logItem }
+                    )
+                }
+            }
+
+            // 自动滚动恢复按钮
+            if (!isAutoScroll && logs.isNotEmpty()) {
+                IconButton(
+                    onClick = { isAutoScroll = true },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp)
+                        .size(40.dp)
+                        .background(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            CircleShape
+                        )
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = "恢复自动滚动",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -146,59 +167,45 @@ fun LogPanel(
     }
 
     // 日志详情弹窗
-    selectedLogItem?.let { logItem ->
+    selectedLog?.let { log ->
         LogDetailDialog(
-            logItem = logItem,
-            onDismiss = { selectedLogItem = null }
+            logItem = log,
+            onDismiss = { selectedLog = null }
         )
     }
 }
 
 /**
- * 单条日志显示
+ * 单条日志行
  */
 @Composable
-private fun LogItemRow(
+private fun LogLine(
     logItem: LogItem,
-    onClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (onClick != null) {
-                    Modifier.clickable(onClick = onClick)
-                } else {
-                    Modifier
-                }
-            ),
-        shape = RoundedCornerShape(4.dp),
-        color = Color.White,
-        tonalElevation = 1.dp
+            .clip(RoundedCornerShape(4.dp))
+            .clickable { onClick() },
+        color = Color.Transparent
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(vertical = 4.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // 时间
-            if (logItem.showTime) {
-                Text(
-                    text = logItem.formattedTime,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(60.dp)
-                )
+            // 时间戳
+            Text(
+                text = logItem.formattedTime,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.width(55.dp)
+            )
 
-                Spacer(modifier = Modifier.width(6.dp))
-            }
-
-            // 级别标签
+            // 级别标识
             Surface(
                 shape = RoundedCornerShape(3.dp),
                 color = logItem.color.copy(alpha = 0.15f)
@@ -250,35 +257,42 @@ private fun LogDetailDialog(
     logItem: LogItem,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    AdaptiveTaskPromptDialog(
+        visible = true,
+        title = "日志详情",
+        onConfirm = onDismiss,
         onDismissRequest = onDismiss,
-        title = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+        confirmText = "确定",
+        dismissText = null,
+        icon = Icons.Rounded.Info,
+        iconTint = logItem.color,
+        content = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = logItem.color.copy(alpha = 0.15f)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = logItem.color.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = logItem.level.displayName,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = logItem.color,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                     Text(
-                        text = logItem.level.displayName,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = logItem.color,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        text = logItem.formattedTime,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Text(
-                    text = logItem.formattedTime,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+
                 // 日志内容
                 Text(
                     text = logItem.content,
@@ -304,7 +318,11 @@ private fun LogDetailDialog(
                                     fontFamily = FontFamily.Monospace
                                 ),
                                 color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(8.dp)
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .fillMaxWidth()
+                                    .heightIn(max = 200.dp)
+                                    .verticalScroll(rememberScrollState())
                             )
                         }
                     }
@@ -321,16 +339,11 @@ private fun LogDetailDialog(
                         Text(
                             text = path,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { /* TODO: 打开图片 */ }
                         )
-                        // TODO: 实现截图缩略图显示
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭")
             }
         }
     )

@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -371,25 +373,37 @@ fun UpdateCard(
 
                 // 更新源说明弹窗
                 showInfoSource?.let { source ->
-                    AlertDialog(
-                        onDismissRequest = { showInfoSource = null },
-                        title = {
-                            Text(
-                                text = "关于 ${source.displayName}",
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center
+                    AdaptiveTaskPromptDialog(
+                        visible = true,
+                        title = "关于 ${source.displayName}",
+                        onConfirm = {
+                            uriHandler.openUri(
+                                when (source) {
+                                    UpdateSource.GITHUB -> "https://github.com/MaaAssistantArknights/MaaResource"
+                                    UpdateSource.MIRROR_CHYAN -> "https://mirrorchyan.com/zh/projects?rid=MAA&os=android&channel=stable&source=maameow"
+                                }
                             )
+                            showInfoSource = null
                         },
-                        text = {
+                        onDismissRequest = { showInfoSource = null },
+                        confirmText = "前往官网",
+                        dismissText = "关闭",
+                        icon = Icons.Rounded.Info,
+                        content = {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 when (source) {
-                                    UpdateSource.GITHUB -> Text("从 GitHub 官方仓库下载资源。适合网络环境良好的用户，可直接获取最新版本。")
+                                    UpdateSource.GITHUB -> Text(
+                                        text = "从 GitHub 官方仓库下载资源。适合网络环境良好的用户，可直接获取最新版本。",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        textAlign = TextAlign.Center
+                                    )
+
                                     UpdateSource.MIRROR_CHYAN -> Text(
-                                        buildAnnotatedString {
+                                        text = buildAnnotatedString {
                                             withStyle(
                                                 SpanStyle(
                                                     color = MaterialTheme.colorScheme.primary,
@@ -401,25 +415,13 @@ fun UpdateCard(
                                             append("是独立的第三方加速下载服务，需要付费使用，并非「MAA」收费。\n\n")
                                             append("其运营成本由订阅收入支撑，部分收益将回馈项目开发者。欢迎订阅 CDK 享受高速下载，同时支持项目持续开发。\n\n")
                                             append("选择 Mirror酱 作为下载源时需要填写 CDK。")
-                                        }
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        textAlign = TextAlign.Center
                                     )
                                 }
-                                FilledTonalButton(
-                                    onClick = {
-                                        uriHandler.openUri(
-                                            when (source) {
-                                                UpdateSource.GITHUB -> "https://github.com/MaaAssistantArknights/MaaResource"
-                                                UpdateSource.MIRROR_CHYAN -> "https://mirrorchyan.com/zh/projects?rid=MAA&os=android&channel=stable&source=maameow"
-                                            }
-                                        )
-                                        showInfoSource = null
-                                    }
-                                ) {
-                                    Text("前往官网")
-                                }
                             }
-                        },
-                        confirmButton = {}
+                        }
                     )
                 }
 
@@ -431,6 +433,77 @@ fun UpdateCard(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * CDK 输入框
+ */
+@Composable
+private fun CdkInputField(
+    cdk: String,
+    onCdkChange: (String) -> Unit
+) {
+    val uriHandler = LocalUriHandler.current
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    var localCdk by remember { mutableStateOf(cdk) }
+    LaunchedEffect(cdk) {
+        if (cdk != localCdk) {
+            localCdk = cdk
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        OutlinedTextField(
+            value = localCdk,
+            onValueChange = { newValue ->
+                localCdk = newValue
+                onCdkChange(newValue)
+            },
+            label = { Text("Mirror酱 CDK") },
+            placeholder = { Text("请输入 CDK") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            visualTransformation = if (passwordVisible) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                Row {
+                    if (localCdk.isNotEmpty()) {
+                        IconButton(onClick = {
+                            localCdk = ""
+                            onCdkChange("")
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "清空"
+                            )
+                        }
+                    }
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) Icons.Outlined.Lock else Icons.Filled.Lock,
+                            contentDescription = if (passwordVisible) "隐藏" else "显示"
+                        )
+                    }
+                }
+            }
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        TextButton(
+            onClick = { uriHandler.openUri("https://mirrorchyan.com/") }
+        ) {
+            Text(
+                text = "没有CDK? 立即订阅",
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
@@ -606,22 +679,26 @@ private fun AppUpdateConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    AdaptiveTaskPromptDialog(
+        visible = true,
+        title = "发现新版本",
+        onConfirm = onConfirm,
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "发现新版本",
-                style = MaterialTheme.typography.titleMedium
-            )
-        },
-        text = {
+        confirmText = "立即更新",
+        confirmColor = Color(0xFF4CAF50),
+        dismissText = "稍后再说",
+        icon = Icons.Rounded.Info,
+        content = {
             Column {
                 Text(
                     text = "$currentVersion → ${updateInfo.version}",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
                 )
                 if (!updateInfo.releaseNote.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     MarkdownText(
                         markdown = updateInfo.releaseNote,
                         modifier = Modifier
@@ -632,94 +709,8 @@ private fun AppUpdateConfirmDialog(
                     )
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50)
-                )
-            ) {
-                Text("立即更新")
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text("稍后再说")
-            }
         }
     )
-}
-
-/**
- * CDK 输入框
- */
-@Composable
-private fun CdkInputField(
-    cdk: String,
-    onCdkChange: (String) -> Unit
-) {
-    val uriHandler = LocalUriHandler.current
-    var passwordVisible by remember { mutableStateOf(false) }
-
-    var localCdk by remember { mutableStateOf(cdk) }
-    LaunchedEffect(cdk) {
-        if (cdk != localCdk) {
-            localCdk = cdk
-        }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        OutlinedTextField(
-            value = localCdk,
-            onValueChange = { newValue ->
-                localCdk = newValue
-                onCdkChange(newValue)
-            },
-            label = { Text("Mirror酱 CDK") },
-            placeholder = { Text("请输入 CDK") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            visualTransformation = if (passwordVisible) {
-                VisualTransformation.None
-            } else {
-                PasswordVisualTransformation()
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            trailingIcon = {
-                Row {
-                    if (localCdk.isNotEmpty()) {
-                        IconButton(onClick = {
-                            localCdk = ""
-                            onCdkChange("")
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "清空"
-                            )
-                        }
-                    }
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) Icons.Outlined.Lock else Icons.Filled.Lock,
-                            contentDescription = if (passwordVisible) "隐藏" else "显示"
-                        )
-                    }
-                }
-            }
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        TextButton(
-            onClick = { uriHandler.openUri("https://mirrorchyan.com/") }
-        ) {
-            Text(
-                text = "没有CDK? 立即订阅",
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
 }
 
 /**
@@ -730,24 +721,15 @@ private fun ErrorDialog(
     message: String,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    AdaptiveTaskPromptDialog(
+        visible = true,
+        title = "更新失败",
+        message = message,
+        onConfirm = onDismiss,
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "更新失败",
-                style = MaterialTheme.typography.titleMedium
-            )
-        },
-        text = {
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("确定")
-            }
-        }
+        confirmText = "确定",
+        dismissText = null,
+        icon = Icons.Rounded.Warning,
+        confirmColor = MaterialTheme.colorScheme.error
     )
 }
