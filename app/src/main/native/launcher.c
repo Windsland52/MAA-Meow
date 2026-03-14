@@ -425,11 +425,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    if (security_setenforce(0) == 0) {
-        LOGI("SELinux set to permissive");
-    } else {
-        LOGW("setenforce(0) failed: %s (continuing anyway)", strerror(errno));
-    }
+//    if (security_setenforce(0) == 0) {
+//        LOGI("SELinux set to permissive");
+//    } else {
+//        LOGW("setenforce(0) failed: %s (continuing anyway)", strerror(errno));
+//    }
 
     if (!read_shell_identity(&shell_uid, &gids)) {
         LOGI("Proceeding without packages.list static gids");
