@@ -77,7 +77,7 @@ object RootRemoteServiceConnector : RemoteServiceConnectorBackend {
 
                 try {
                     binder.linkToDeath({
-                        Timber.e("Root process died unexpectedly! Executing emergency cleanup.")
+                        Timber.e("Root process died unexpectedly.")
                         callbacks.onDisconnected(backend)
                     }, 0)
                 } catch (e: Exception) {
@@ -132,7 +132,7 @@ object RootRemoteServiceConnector : RemoteServiceConnectorBackend {
         )
         check(launcherFile.exists()) { "root launcher not found: ${launcherFile.absolutePath}" }
         val launcherPath = launcherFile.absolutePath
-        val userId = Process.myUid() / 100000
+        val uid = Process.myUid()
         return buildString {
             append(shellQuote(launcherPath))
             append(" --apk=")
@@ -147,8 +147,8 @@ object RootRemoteServiceConnector : RemoteServiceConnectorBackend {
             append(shellQuote(appContext.packageName))
             append(" --class=")
             append(shellQuote(RemoteServiceImpl::class.java.name))
-            append(" --user-id=")
-            append(userId)
+            append(" --uid=")
+            append(uid)
             if (BuildConfig.DEBUG) {
                 append(" --debug-name=")
                 append(shellQuote(processName))

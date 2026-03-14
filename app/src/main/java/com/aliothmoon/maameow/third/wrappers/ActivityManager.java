@@ -9,7 +9,6 @@ import android.os.IBinder;
 import android.os.IInterface;
 
 import com.aliothmoon.maameow.constant.AndroidVersions;
-import com.aliothmoon.maameow.third.FakeContext;
 import com.aliothmoon.maameow.third.Ln;
 
 import java.lang.reflect.Field;
@@ -65,15 +64,20 @@ public final class ActivityManager {
 
     @TargetApi(AndroidVersions.API_29_ANDROID_10)
     public IContentProvider getContentProviderExternal(String name, IBinder token) {
+        return getContentProviderExternal(name, 0, token, null);
+    }
+
+    @TargetApi(AndroidVersions.API_29_ANDROID_10)
+    public IContentProvider getContentProviderExternal(String name, int userId, IBinder token, String tag) {
         try {
             Method method = getGetContentProviderExternalMethod();
             Object[] args;
             if (getContentProviderExternalMethodNewVersion) {
                 // new version
-                args = new Object[]{name, FakeContext.ROOT_UID, token, null};
+                args = new Object[]{name, userId, token, tag};
             } else {
                 // old version
-                args = new Object[]{name, FakeContext.ROOT_UID, token};
+                args = new Object[]{name, userId, token};
             }
             // ContentProviderHolder providerHolder = getContentProviderExternal(...);
             Object providerHolder = method.invoke(manager, args);
@@ -90,7 +94,7 @@ public final class ActivityManager {
         }
     }
 
-    void removeContentProviderExternal(String name, IBinder token) {
+    public void removeContentProviderExternal(String name, IBinder token) {
         try {
             Method method = getRemoveContentProviderExternalMethod();
             method.invoke(manager, name, token);
@@ -130,7 +134,7 @@ public final class ActivityManager {
             return (int) method.invoke(
                     /* this */ manager,
                     /* caller */ null,
-                    /* callingPackage */ FakeContext.PACKAGE_NAME,
+                    /* callingPackage FakeContext.PACKAGE_NAME */ "com.android.shell",
                     /* intent */ intent,
                     /* resolvedType */ null,
                     /* resultTo */ null,

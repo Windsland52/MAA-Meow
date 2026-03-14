@@ -58,7 +58,7 @@ typedef struct {
     const char *package_name;
     const char *service_class;
     const char *debug_name;
-    int user_id;
+    int uid;
 } LauncherArgs;
 
 typedef struct {
@@ -102,7 +102,7 @@ static bool parse_int(const char *value, int *out) {
 
 static bool parse_args(int argc, char **argv, LauncherArgs *out) {
     memset(out, 0, sizeof(*out));
-    out->user_id = -1;
+    out->uid = -1;
 
     for (int i = 1; i < argc; ++i) {
         if (starts_with(argv[i], "--apk=")) {
@@ -117,9 +117,9 @@ static bool parse_args(int argc, char **argv, LauncherArgs *out) {
             out->package_name = argv[i] + 10;
         } else if (starts_with(argv[i], "--class=")) {
             out->service_class = argv[i] + 8;
-        } else if (starts_with(argv[i], "--user-id=")) {
-            if (!parse_int(argv[i] + 10, &out->user_id)) {
-                LOGE("Invalid user id: %s", argv[i] + 10);
+        } else if (starts_with(argv[i], "--uid=")) {
+            if (!parse_int(argv[i] + 6, &out->uid)) {
+                LOGE("Invalid uid: %s", argv[i] + 6);
                 return false;
             }
         } else if (starts_with(argv[i], "--debug-name=")) {
@@ -133,7 +133,7 @@ static bool parse_args(int argc, char **argv, LauncherArgs *out) {
            && out->token != NULL
            && out->package_name != NULL
            && out->service_class != NULL
-           && out->user_id >= 0;
+           && out->uid >= 0;
 }
 
 static bool append_gid_unique(GidList *list, gid_t gid) {
@@ -353,35 +353,35 @@ static void log_shell_identity(void) {
 }
 
 static void exec_app_process(const LauncherArgs *args) {
-    char user_id_text[32];
+    char uid_text[32];
     char *nice_name_arg = NULL;
     char *token_arg = NULL;
     char *package_arg = NULL;
     char *service_arg = NULL;
-    char *user_id_arg = NULL;
+    char *uid_arg = NULL;
     char *debug_arg = NULL;
     char *exec_args[11];
     size_t index = 0;
 
-    snprintf(user_id_text, sizeof(user_id_text), "%d", args->user_id);
+    snprintf(uid_text, sizeof(uid_text), "%d", args->uid);
 
     nice_name_arg = format_arg("--nice-name=", args->process_name);
     token_arg = format_arg("--token=", args->token);
     package_arg = format_arg("--package=", args->package_name);
     service_arg = format_arg("--class=", args->service_class);
-    user_id_arg = format_arg("--user-id=", user_id_text);
+    uid_arg = format_arg("--uid=", uid_text);
     if (args->debug_name != NULL) {
         debug_arg = format_arg("--debug-name=", args->debug_name);
     }
 
     if (nice_name_arg == NULL || token_arg == NULL || package_arg == NULL
-        || service_arg == NULL || user_id_arg == NULL
+        || service_arg == NULL || uid_arg == NULL
         || (args->debug_name != NULL && debug_arg == NULL)) {
         free(nice_name_arg);
         free(token_arg);
         free(package_arg);
         free(service_arg);
-        free(user_id_arg);
+        free(uid_arg);
         free(debug_arg);
         exit(1);
     }
@@ -398,7 +398,7 @@ static void exec_app_process(const LauncherArgs *args) {
     exec_args[index++] = token_arg;
     exec_args[index++] = package_arg;
     exec_args[index++] = service_arg;
-    exec_args[index++] = user_id_arg;
+    exec_args[index++] = uid_arg;
     if (debug_arg != NULL) {
         exec_args[index++] = debug_arg;
     }
@@ -410,7 +410,7 @@ static void exec_app_process(const LauncherArgs *args) {
     free(token_arg);
     free(package_arg);
     free(service_arg);
-    free(user_id_arg);
+    free(uid_arg);
     free(debug_arg);
     exit(1);
 }
