@@ -1,6 +1,7 @@
 package com.aliothmoon.maameow.data.config
 
 import android.content.Context
+import com.aliothmoon.maameow.constant.MaaFiles.APP_VERSION_FILE
 import com.aliothmoon.maameow.constant.MaaFiles.CACHE
 import com.aliothmoon.maameow.constant.MaaFiles.DEBUG
 import com.aliothmoon.maameow.constant.MaaFiles.MAA
@@ -56,9 +57,27 @@ class MaaPathConfig(private val context: Context) {
     private val versionFile: File
         get() = File(resourceDir, VERSION_FILE)
 
-    /** 资源是否已就绪 */
+    /** 资源是否已就绪（资源存在且 APP 版本匹配） */
     val isResourceReady: Boolean
-        get() = versionFile.exists()
+        get() = versionFile.exists() && isAppVersionCurrent()
+
+    private fun isAppVersionCurrent(): Boolean {
+        val file = File(rootDir, APP_VERSION_FILE)
+        if (!file.exists()) return false
+        return try {
+            file.readText().trim().toLong() == getAppVersionCode()
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun getAppVersionCode(): Long {
+        return context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode
+    }
+
+    fun markAppVersion() {
+        File(rootDir, APP_VERSION_FILE).writeText(getAppVersionCode().toString())
+    }
 
     fun ensureDirectories(): Boolean {
         return runCatching {

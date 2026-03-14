@@ -62,6 +62,7 @@ class ResourceInitService(
 
             result.fold(
                 onSuccess = {
+                    pathConfig.markAppVersion()
                     Timber.i("资源初始化完成")
                     _state.value = ResourceInitState.Ready
                 },

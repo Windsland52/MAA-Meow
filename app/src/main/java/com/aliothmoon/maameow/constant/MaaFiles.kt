@@ -7,4 +7,5 @@ object MaaFiles {
     const val DEBUG = "debug"
     const val ASSET_DIR_NAME = "MaaSync/MaaResource"
     const val VERSION_FILE = "version.json"
+    const val APP_VERSION_FILE = ".version"
 }
