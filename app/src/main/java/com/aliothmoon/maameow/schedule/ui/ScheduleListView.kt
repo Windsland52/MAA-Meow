@@ -42,9 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.aliothmoon.maameow.presentation.components.TopAppBar
-import com.aliothmoon.maameow.schedule.service.AutoStartHelper
 import com.aliothmoon.maameow.schedule.model.ExecutionResult
-import com.aliothmoon.maameow.schedule.model.ScheduleExecutionLog
+import com.aliothmoon.maameow.schedule.service.AutoStartHelper
 import com.aliothmoon.maameow.schedule.model.ScheduleStrategy
 import org.koin.androidx.compose.koinViewModel
 import java.time.DayOfWeek
@@ -54,7 +53,7 @@ import androidx.core.content.edit
 @Composable
 fun ScheduleListView(
     navController: NavController,
-    viewModel: ScheduleListViewModel = koinViewModel()
+    viewModel: ScheduleListViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -127,7 +126,6 @@ fun ScheduleListView(
                     StrategyCard(
                         strategy = strategy,
                         profileName = profileName,
-                        recentLogs = state.recentLogs[strategy.id] ?: emptyList(),
                         nextTrigger = viewModel.getNextTriggerTime(strategy),
                         onToggleEnabled = { viewModel.onToggleEnabled(strategy.id, it) },
                         onClick = { navController.navigate("schedule_edit/${strategy.id}") },
@@ -179,7 +177,6 @@ fun ScheduleListView(
 private fun StrategyCard(
     strategy: ScheduleStrategy,
     profileName: String?,
-    recentLogs: List<ScheduleExecutionLog>,
     nextTrigger: String?,
     onToggleEnabled: (Boolean) -> Unit,
     onClick: () -> Unit,
@@ -201,37 +198,44 @@ private fun StrategyCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 val summary = buildString {
                     append(scheduleStrategyScheduleSummary(strategy))
-                    if (profileName != null) append(" · $profileName")
                 }
                 Text(
                     text = summary,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (profileName != null) {
+                    Text(
+                        text = profileName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-                val showNext = strategy.enabled && nextTrigger != null
-                val lastLog = recentLogs.firstOrNull()
-                if (showNext || lastLog != null) {
-                    Row(
+                if (strategy.enabled && nextTrigger != null) {
+                    Text(
+                        text = "下次: $nextTrigger",
                         modifier = Modifier.padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        if (showNext) {
-                            Text(
-                                text = "下次: $nextTrigger",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        if (lastLog != null) {
-                            val (text, color) = scheduleExecutionResultDisplay(lastLog.result)
-                            Text(
-                                text = "上次: $text",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = color
-                            )
-                        }
-                    }
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                val lastResultText = strategy.lastResult?.let {
+                    formatExecutionResult(it, strategy.lastResultMessage)
+                }
+                if (lastResultText != null) {
+                    Text(
+                        text = lastResultText,
+                        modifier = Modifier.padding(top = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = executionResultColor(
+                            strategy.lastResult,
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.error,
+                            MaterialTheme.colorScheme.tertiary,
+                        ),
+                    )
                 }
             }
 
@@ -261,11 +265,34 @@ private fun scheduleStrategyScheduleSummary(strategy: ScheduleStrategy): String 
     return "$days $times"
 }
 
-private fun scheduleExecutionResultDisplay(result: ExecutionResult): Pair<String, Color> = when (result) {
-    ExecutionResult.SUCCESS -> "成功" to Color(0xFF16a34a)
-    ExecutionResult.FAILED -> "失败" to Color(0xFFdc2626)
-    ExecutionResult.SKIPPED_BUSY -> "跳过(忙)" to Color(0xFFf59e0b)
-    ExecutionResult.SKIPPED_NO_SERVICE -> "跳过(无服务)" to Color(0xFFf59e0b)
-    ExecutionResult.CANCELLED_BY_USER -> "已取消" to Color(0xFF6b7280)
-    ExecutionResult.SKIPPED_SYSTEM_BUSY -> "跳过(系统繁忙)" to Color(0xFFf59e0b)
+private fun formatExecutionResult(result: ExecutionResult, message: String?): String {
+    val label = when (result) {
+        ExecutionResult.STARTED -> "上次: 已启动"
+        ExecutionResult.FAILED_VALIDATION -> "上次: 校验失败"
+        ExecutionResult.FAILED_START -> "上次: 启动失败"
+        ExecutionResult.FAILED_UI_LAUNCH -> "上次: 拉起界面失败"
+        ExecutionResult.SKIPPED_BUSY -> "上次: 系统繁忙"
+        ExecutionResult.CANCELLED -> "上次: 已取消"
+        else -> return ""
+    }
+    return if (message.isNullOrBlank()) label else "$label · $message"
+}
+
+private fun executionResultColor(
+    result: ExecutionResult?,
+    successColor: Color,
+    errorColor: Color,
+    warningColor: Color,
+): Color {
+    return when (result) {
+        ExecutionResult.STARTED -> successColor
+        ExecutionResult.SKIPPED_BUSY,
+        ExecutionResult.CANCELLED -> warningColor
+
+        ExecutionResult.FAILED_VALIDATION,
+        ExecutionResult.FAILED_START,
+        ExecutionResult.FAILED_UI_LAUNCH -> errorColor
+
+        else -> Color.Unspecified
+    }
 }

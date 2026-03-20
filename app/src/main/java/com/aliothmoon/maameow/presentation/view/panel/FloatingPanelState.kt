@@ -9,7 +9,13 @@ enum class PanelTab(val displayName: String) {
     TASKS("一键长草"),
     AUTO_BATTLE("自动战斗"),
     TOOLS("小工具"),
-    LOG("日志")
+    LOG("日志");
+
+    companion object {
+        fun canShowTaskActions(state: PanelTab): Boolean {
+            return state == TASKS || state == AUTO_BATTLE || state == TOOLS
+        }
+    }
 }
 
 @Stable

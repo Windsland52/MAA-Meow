@@ -4,10 +4,11 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class ExecutionResult {
-    SUCCESS,
-    FAILED,
+    STARTED,
+    FAILED_VALIDATION,
+    FAILED_START,
+    FAILED_UI_LAUNCH,
     SKIPPED_BUSY,
-    SKIPPED_NO_SERVICE,
-    CANCELLED_BY_USER,
-    SKIPPED_SYSTEM_BUSY
+    SKIPPED_LOCKED,
+    CANCELLED,
 }

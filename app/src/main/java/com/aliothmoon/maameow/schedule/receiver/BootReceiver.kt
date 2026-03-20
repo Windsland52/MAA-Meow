@@ -10,27 +10,39 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.core.context.GlobalContext
 import timber.log.Timber
 
 /**
- * 设备重启后恢复所有定时任务闹钟
+ * 设备重启或应用更新后恢复所有定时任务闹钟
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-        Timber.i("Boot completed, rescheduling all strategies")
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED
+            && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED
+        ) return
+        Timber.i("Schedule restore triggered by: %s", intent.action)
+        val pendingResult = goAsync()
 
         val repository: ScheduleStrategyRepository = GlobalContext.get().get()
-        val alarmManager = ScheduleAlarmManager(context)
+        val alarmManager: ScheduleAlarmManager = GlobalContext.get().get()
 
         CoroutineScope(Dispatchers.IO).launch {
-            // 等待 repository 从 DataStore 完成初始化加载 (isLoaded 变为 true)
-            repository.isLoaded.filter { it }.first()
-
-            val strategies = repository.strategies.value
-            alarmManager.rescheduleAll(strategies)
-            Timber.i("Boot reschedule complete: %d strategies", strategies.size)
+            try {
+                val loaded = withTimeoutOrNull(5_000L) {
+                    repository.isLoaded.filter { it }.first()
+                }
+                if (loaded == null) {
+                    Timber.w("Schedule restore: DataStore load timeout, skipping")
+                    return@launch
+                }
+                val strategies = repository.strategies.value
+                alarmManager.rescheduleAll(strategies)
+                Timber.i("Schedule restore complete: %d strategies", strategies.size)
+            } finally {
+                pendingResult.finish()
+            }
         }
     }
 }

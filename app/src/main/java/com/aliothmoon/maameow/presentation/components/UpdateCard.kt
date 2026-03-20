@@ -69,7 +69,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aliothmoon.maameow.data.model.update.UpdateCheckResult
 import com.aliothmoon.maameow.data.model.update.UpdateInfo
 import com.aliothmoon.maameow.data.model.update.UpdateProcessState
@@ -85,7 +84,7 @@ import dev.jeziellago.compose.markdowntext.MarkdownText
 
 @Composable
 fun UpdateCard(
-    viewModel: UpdateViewModel = viewModel()
+    viewModel: UpdateViewModel
 ) {
     val resourceUpdateState by viewModel.resourceUpdateState.collectAsStateWithLifecycle()
     val appUpdateState by viewModel.appUpdateState.collectAsStateWithLifecycle()

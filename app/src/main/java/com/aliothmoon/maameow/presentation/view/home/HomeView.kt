@@ -220,7 +220,7 @@ fun HomeView(
                 }
 
                 item {
-                    UpdateCard()
+                    UpdateCard(viewModel = updateViewModel)
                 }
 
                 item {

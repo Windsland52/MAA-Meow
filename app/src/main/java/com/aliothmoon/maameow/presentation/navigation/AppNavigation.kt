@@ -2,8 +2,6 @@ package com.aliothmoon.maameow.presentation.navigation
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -14,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,17 +34,16 @@ import com.aliothmoon.maameow.presentation.view.home.HomeView
 import com.aliothmoon.maameow.presentation.view.settings.ErrorLogView
 import com.aliothmoon.maameow.presentation.view.settings.LogHistoryView
 import com.aliothmoon.maameow.presentation.view.settings.SettingsView
+import com.aliothmoon.maameow.presentation.viewmodel.BackgroundTaskViewModel
 import com.aliothmoon.maameow.schedule.model.CountdownState
-import com.aliothmoon.maameow.schedule.service.ScheduleExecutionService
 import com.aliothmoon.maameow.schedule.ui.CountdownDialog
 import com.aliothmoon.maameow.schedule.ui.ScheduleEditView
 import com.aliothmoon.maameow.schedule.ui.ScheduleListView
-import com.aliothmoon.maameow.schedule.ui.sendCancelIntent
-import com.aliothmoon.maameow.schedule.ui.sendSkipCountdownIntent
 import org.koin.compose.koinInject
 
 @Composable
 fun AppNavigation(
+    backgroundTaskViewModel: BackgroundTaskViewModel,
     appSettings: AppSettingsManager = koinInject(),
 ) {
     val navController = rememberNavController()
@@ -58,6 +56,8 @@ fun AppNavigation(
 
     // 执行模式状态 - 用于底部导航拦截
     val runMode by appSettings.runMode.collectAsStateWithLifecycle()
+    val pendingScheduledExecution by backgroundTaskViewModel.coordinator.pendingExecution.collectAsStateWithLifecycle()
+    val scheduledCountdownState by backgroundTaskViewModel.coordinator.countdownState.collectAsStateWithLifecycle()
 
     // 定义哪些页面属于主 Tab
     val mainTabs = listOf(Routes.HOME, Routes.BACKGROUND_TASK, Routes.SCHEDULE)
@@ -67,6 +67,24 @@ fun AppNavigation(
 
     // 判断是否显示底部导航
     val showBottomBar = !isFullscreen && isOnMainTab
+
+    LaunchedEffect(pendingScheduledExecution?.requestId) {
+        if (pendingScheduledExecution != null && currentNavRoute != Routes.BACKGROUND_TASK) {
+            navController.navigate(Routes.BACKGROUND_TASK) {
+                popUpTo(Routes.HOME) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
+    LaunchedEffect(backgroundTaskViewModel) {
+        backgroundTaskViewModel.coordinator.feedbackMessages.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // 主 Tab 切换动画定义 - 使用极短的渐变色来平滑过渡，防止重叠感
     val tabEnterTransition = fadeIn(animationSpec = tween(150))
@@ -129,7 +147,10 @@ fun AppNavigation(
                         popExitTransition = { tabExitTransition }
                     ) {
                         BackHandler { navController.navigate(Routes.HOME) }
-                        BackgroundTaskView(onFullscreenChanged = { isFullscreen = it })
+                        BackgroundTaskView(
+                            onFullscreenChanged = { isFullscreen = it },
+                            viewModel = backgroundTaskViewModel,
+                        )
                     }
 
                     composable(
@@ -165,6 +186,15 @@ fun AppNavigation(
                         route = Routes.LOG_HISTORY,
                         enterTransition = {
                             slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(350))
+                        },
+                        exitTransition = {
+                            slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(350))
+                        },
+                        popEnterTransition = {
+                            slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(350))
+                        },
+                        popExitTransition = {
+                            slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(350))
                         }
                     ) {
                         LogHistoryView(navController = navController)
@@ -174,6 +204,15 @@ fun AppNavigation(
                         route = Routes.ERROR_LOG,
                         enterTransition = {
                             slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(350))
+                        },
+                        exitTransition = {
+                            slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(350))
+                        },
+                        popEnterTransition = {
+                            slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(350))
+                        },
+                        popExitTransition = {
+                            slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(350))
                         }
                     ) {
                         ErrorLogView(navController = navController)
@@ -205,13 +244,12 @@ fun AppNavigation(
         ResourceLoadingOverlay()
 
         // 全局定时任务倒计时弹窗
-        val countdownState by ScheduleExecutionService.countdownState.collectAsState()
-        val countdown = countdownState
+        val countdown = scheduledCountdownState
         if (countdown is CountdownState.Counting) {
             CountdownDialog(
                 state = countdown,
-                onCancel = { sendCancelIntent(context) },
-                onStartNow = { sendSkipCountdownIntent(context) }
+                onCancel = { backgroundTaskViewModel.onScheduledCountdownCancel() },
+                onStartNow = { backgroundTaskViewModel.onScheduledStartNow() },
             )
         }
     }

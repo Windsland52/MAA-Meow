@@ -116,6 +116,16 @@ fun ScheduleEditView(
             item {
                 SectionHeader("基本信息")
             }
+            if (!state.isNew && state.strategyId != null) {
+                item {
+                    Text(
+                        text = "ID: ${state.strategyId}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+            }
             item {
                 OutlinedTextField(
                     value = state.name,

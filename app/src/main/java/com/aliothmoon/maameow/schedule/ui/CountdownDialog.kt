@@ -1,7 +1,5 @@
 package com.aliothmoon.maameow.schedule.ui
 
-import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -20,8 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.aliothmoon.maameow.schedule.model.CountdownState
-import com.aliothmoon.maameow.schedule.service.ScheduleAlarmManager
-import com.aliothmoon.maameow.schedule.service.ScheduleExecutionService
 
 @Composable
 fun CountdownDialog(
@@ -45,7 +41,7 @@ fun CountdownDialog(
                 Spacer(modifier = Modifier.height(24.dp))
                 Box(contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(
-                        progress = { state.remainingSeconds / 60f },
+                        progress = { state.remainingSeconds / 30f },
                         modifier = Modifier.size(120.dp),
                         strokeWidth = 8.dp,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -75,20 +71,4 @@ fun CountdownDialog(
             }
         }
     )
-}
-
-/** 发送取消倒计时的 Intent 到 ScheduleExecutionService */
-fun sendCancelIntent(context: Context) {
-    val intent = Intent(context, ScheduleExecutionService::class.java).apply {
-        action = ScheduleAlarmManager.ACTION_SCHEDULE_CANCEL
-    }
-    context.startService(intent)
-}
-
-/** 发送跳过倒计时的 Intent 到 ScheduleExecutionService */
-fun sendSkipCountdownIntent(context: Context) {
-    val intent = Intent(context, ScheduleExecutionService::class.java).apply {
-        action = ScheduleExecutionService.ACTION_SKIP_COUNTDOWN
-    }
-    context.startService(intent)
 }

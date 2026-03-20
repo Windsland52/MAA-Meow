@@ -10,23 +10,21 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import com.aliothmoon.maameow.constant.DefaultDisplayConfig
 import com.aliothmoon.maameow.presentation.state.PreviewTouchMarker
 
 @Composable
 fun TouchPreviewOverlay(
     markers: List<PreviewTouchMarker>,
-    displayWidth: Int,
-    displayHeight: Int,
+    displayResolution: DefaultDisplayConfig.Resolution,
     modifier: Modifier = Modifier,
 ) {
-    if (markers.isEmpty()) {
-        return
-    }
-
+    val width = displayResolution.width
+    val height = displayResolution.height
     Canvas(modifier = modifier) {
         val now = SystemClock.elapsedRealtime()
-        val maxX = (displayWidth - 1).coerceAtLeast(1)
-        val maxY = (displayHeight - 1).coerceAtLeast(1)
+        val maxX = (width - 1).coerceAtLeast(1)
+        val maxY = (height - 1).coerceAtLeast(1)
 
         markers.forEach { marker ->
             val age = (now - marker.createdAtMs).coerceAtLeast(0L)
@@ -59,7 +57,10 @@ fun TouchPreviewOverlay(
                     // Soft glow core
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(colorGreen.copy(alpha = alpha * 0.8f), colorGreen.copy(alpha = 0f)),
+                            colors = listOf(
+                                colorGreen.copy(alpha = alpha * 0.8f),
+                                colorGreen.copy(alpha = 0f)
+                            ),
                             center = center,
                             radius = 12.dp.toPx()
                         ),

@@ -54,5 +54,6 @@ data class ScheduleStrategy(
     val profileId: String,
     val createdAt: Long = System.currentTimeMillis(),
     val lastExecutedAt: Long? = null,
-    val lastResult: ExecutionResult? = null
+    val lastResult: ExecutionResult? = null,
+    val lastResultMessage: String? = null,
 )

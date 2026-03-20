@@ -10,6 +10,8 @@ import com.aliothmoon.maameow.bridge.NativeBridgeLib
 import com.aliothmoon.maameow.constant.DefaultDisplayConfig
 import com.aliothmoon.maameow.constant.DisplayMode
 import com.aliothmoon.maameow.maa.InputControlUtils
+import android.content.Intent
+import com.aliothmoon.maameow.remote.internal.ActivityUtils
 import com.aliothmoon.maameow.remote.internal.AppOpsHelper
 import com.aliothmoon.maameow.remote.internal.PowerController
 import com.aliothmoon.maameow.remote.internal.PrimaryDisplayManager
@@ -243,6 +245,10 @@ class RemoteServiceImpl : RemoteService.Stub() {
 
     override fun heartbeat() {
         lastHeartbeatAt.set(SystemClock.elapsedRealtime())
+    }
+
+    override fun startActivity(intent: Intent): Boolean {
+        return ActivityUtils.startActivity(intent)
     }
 
     override fun setVirtualDisplayResolution(width: Int, height: Int, dpi: Int) {

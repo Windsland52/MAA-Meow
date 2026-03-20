@@ -106,6 +106,7 @@ class CopilotViewModel(
     private val ratingInFlightCopilotIds = mutableSetOf<Int>()
 
     init {
+        Timber.i("CopilotViewModel inited")
         restoreState()
         observeRuntimeState()
     }

@@ -13,7 +13,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.graphicsLayer
 
 import android.graphics.PixelFormat
-import android.os.Build
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -22,6 +21,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -72,7 +72,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.movableContentOf
@@ -116,7 +115,6 @@ import com.aliothmoon.maameow.domain.service.AppWatchdog
 import com.aliothmoon.maameow.overlay.screensaver.ScreenSaverOverlayManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import timber.log.Timber
 import androidx.compose.material.icons.filled.PowerSettingsNew
@@ -131,71 +129,61 @@ import androidx.compose.runtime.saveable.rememberSaveable
 @Composable
 fun BackgroundTaskView(
     onFullscreenChanged: (Boolean) -> Unit = {},
-    viewModel: BackgroundTaskViewModel = koinViewModel(),
+    viewModel: BackgroundTaskViewModel,
     copilotViewModel: CopilotViewModel = koinInject(),
     miniGameViewModel: MiniGameViewModel = koinInject(),
     compositionService: MaaCompositionService = koinInject(),
     dispatcher: UnifiedStateDispatcher = koinInject(),
     permissionManager: PermissionManager = koinInject(),
-    appSettingsManager: AppSettingsManager = koinInject(),
     screenSaverOverlayManager: ScreenSaverOverlayManager = koinInject(),
     appWatchdog: AppWatchdog = koinInject(),
 ) {
+
     val coroutineScope = rememberCoroutineScope()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val maaState by compositionService.state.collectAsStateWithLifecycle()
-    val permissions by permissionManager.state.collectAsStateWithLifecycle()
-    val muteOnGameLaunch by appSettingsManager.muteOnGameLaunch.collectAsStateWithLifecycle()
-    val closeAppOnTaskEnd by appSettingsManager.closeAppOnTaskEnd.collectAsStateWithLifecycle()
-    val useHardwareScreenOff by appSettingsManager.useHardwareScreenOff.collectAsStateWithLifecycle()
-    val watchdogState by appWatchdog.state.collectAsStateWithLifecycle()
-    val touchMarkers by viewModel.touchMarkers.collectAsStateWithLifecycle()
+    val markers by viewModel.markers.collectAsStateWithLifecycle()
     val displayResolution by compositionService.displayResolution.collectAsStateWithLifecycle()
-    val showTouchPreview by appSettingsManager.showTouchPreview.collectAsStateWithLifecycle()
-
-    // --- 业务就绪状态：以 TaskChainState 实际加载完成为准 ---
+    val permissions by permissionManager.state.collectAsStateWithLifecycle()
     val isChainLoaded by viewModel.chainState.isLoaded.collectAsStateWithLifecycle()
-    // 持久化已加载标志，确保跨 Tab 切换时实现瞬时显示，无需重复等待数据流
     var hasInitialized by rememberSaveable { mutableStateOf(false) }
     if (isChainLoaded) {
         hasInitialized = true
     }
     val isInitialized = hasInitialized
 
-    var isRequestingRemoteAccess by remember { mutableStateOf(false) }
     var showCloseConfirm by remember { mutableStateOf(false) }
     var showMoreActions by remember { mutableStateOf(false) }
-    var showHardwareScreenOffConfirm by remember { mutableStateOf(false) }
 
     val nodes by viewModel.chainState.chain.collectAsStateWithLifecycle()
     val profiles by viewModel.chainState.profiles.collectAsStateWithLifecycle()
     val activeProfileId by viewModel.chainState.activeProfileId.collectAsStateWithLifecycle()
     val selectedNode = nodes.find { it.id == state.selectedNodeId }
-    val canShowTaskActions =
-        state.currentTab == PanelTab.TASKS
-                || state.currentTab == PanelTab.AUTO_BATTLE
-                || state.currentTab == PanelTab.TOOLS
+    val canShowTaskActions = PanelTab.canShowTaskActions(state.current)
 
     val pagerState = rememberPagerState(
-        initialPage = state.currentTab.ordinal, pageCount = { PanelTab.entries.size })
+        initialPage = state.current.ordinal,
+        pageCount = { PanelTab.entries.size }
+    )
 
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             val newTab = PanelTab.entries[page]
-            if (newTab != state.currentTab) {
+            if (newTab != state.current) {
                 viewModel.onTabChange(newTab)
             }
         }
     }
 
-    LaunchedEffect(state.currentTab) {
-        if (pagerState.currentPage != state.currentTab.ordinal) {
-            pagerState.scrollToPage(state.currentTab.ordinal)
+    LaunchedEffect(state.current) {
+        if (pagerState.currentPage != state.current.ordinal) {
+            pagerState.scrollToPage(state.current.ordinal)
         }
     }
     val context = LocalContext.current
 
     if (!permissions.remoteAccessGranted) {
+        var isRequestingRemoteAccess by remember { mutableStateOf(false) }
         ShizukuPermissionDialog(
             title = "需要${permissions.startupBackend.display}权限",
             message = "后台任务页面依赖${permissions.startupBackend.display}远程服务，授权成功前将持续显示该提示。",
@@ -222,6 +210,14 @@ fun BackgroundTaskView(
         onFullscreenChanged(state.isFullscreenMonitor)
     }
 
+    val pendingExecution by viewModel.coordinator.pendingExecution.collectAsStateWithLifecycle()
+
+    LaunchedEffect(pendingExecution?.requestId) {
+        pendingExecution?.let { request ->
+            viewModel.onScheduledExecutionPageReady(request.requestId)
+        }
+    }
+
     LaunchedEffect(Unit) {
         dispatcher.serviceDiedEvent.collect {
             Toast.makeText(context, "MaaService 异常关闭，请尝试重新启动", Toast.LENGTH_SHORT).show()
@@ -243,8 +239,6 @@ fun BackgroundTaskView(
 
     var isSurfaceAvailable by remember { mutableStateOf(false) }
     var lastSentSurface by remember { mutableStateOf<Surface?>(null) }
-    val currentTouchMarkers by rememberUpdatedState(touchMarkers)
-    val currentDisplayResolution by rememberUpdatedState(displayResolution)
 
     val previewContent = remember {
         movableContentOf {
@@ -262,7 +256,8 @@ fun BackgroundTaskView(
                                         coroutineScope.launch {
                                             delay(50)
                                             holder.setFixedSize(
-                                                DefaultDisplayConfig.WIDTH, DefaultDisplayConfig.HEIGHT
+                                                DefaultDisplayConfig.WIDTH,
+                                                DefaultDisplayConfig.HEIGHT
                                             )
                                         }
                                     }
@@ -290,9 +285,8 @@ fun BackgroundTaskView(
                         modifier = Modifier.fillMaxSize()
                     )
                     TouchPreviewOverlay(
-                        markers = currentTouchMarkers,
-                        displayWidth = currentDisplayResolution.width,
-                        displayHeight = currentDisplayResolution.height,
+                        markers = markers,
+                        displayResolution = displayResolution,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -334,11 +328,10 @@ fun BackgroundTaskView(
             ) {
                 if (!state.isFullscreenMonitor) {
                     VirtualDisplayPreview(
+                        modifier = Modifier.fillMaxSize(),
                         isRunning = maaState == MaaExecutionState.RUNNING,
                         isSurfaceAvailable = isSurfaceAvailable,
-                        watchdogState = watchdogState,
-                        onClick = { viewModel.onToggleFullscreenMonitor() },
-                        modifier = Modifier.fillMaxSize()
+                        onClick = { viewModel.onToggleFullscreenMonitor() }
                     ) {
                         previewContent()
                     }
@@ -356,14 +349,16 @@ fun BackgroundTaskView(
                     .weight(7f)
             ) {
                 PanelHeader(
-                    selectedTab = state.currentTab,
+                    selectedTab = state.current,
                     onTabSelected = { tab -> viewModel.onTabChange(tab) },
                     showActions = false
                 )
 
-                androidx.compose.animation.Crossfade(
+                Crossfade(
                     targetState = isInitialized,
-                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
                     animationSpec = tween(300),
                     label = "ContentCrossfade"
                 ) { initialized ->
@@ -386,18 +381,12 @@ fun BackgroundTaskView(
                                                 isEditMode = state.isEditMode,
                                                 isAddingTask = state.isAddingTask,
                                                 isProfileMode = state.isProfileMode,
-                                                onNodeEnabledChange = { nodeId, enabled ->
-                                                    viewModel.onNodeEnabledChange(nodeId, enabled)
-                                                },
-                                                onNodeSelected = { nodeId ->
-                                                    viewModel.onNodeSelected(nodeId)
-                                                },
-                                                onNodeMove = { fromIndex, toIndex ->
-                                                    viewModel.onNodeMove(fromIndex, toIndex)
-                                                },
-                                                onToggleEditMode = { viewModel.onToggleEditMode() },
-                                                onToggleAddingTask = { viewModel.onToggleAddingTask() },
-                                                onToggleProfileMode = { viewModel.onToggleProfileMode() },
+                                                onNodeEnabledChange = viewModel::onNodeEnabledChange,
+                                                onNodeSelected = viewModel::onNodeSelected,
+                                                onNodeMove = viewModel::onNodeMove,
+                                                onToggleEditMode = viewModel::onToggleEditMode,
+                                                onToggleAddingTask = viewModel::onToggleAddingTask,
+                                                onToggleProfileMode = viewModel::onToggleProfileMode,
                                                 modifier = Modifier.fillMaxHeight(),
                                             )
 
@@ -421,8 +410,12 @@ fun BackgroundTaskView(
                                                         activeProfileId = activeProfileId,
                                                         onConfigChange = { config ->
                                                             val nodeId =
-                                                                selectedNode?.id ?: return@TaskConfigPanel
-                                                            viewModel.onNodeConfigChange(nodeId, config)
+                                                                selectedNode?.id
+                                                                    ?: return@TaskConfigPanel
+                                                            viewModel.onNodeConfigChange(
+                                                                nodeId,
+                                                                config
+                                                            )
                                                         },
                                                         onAddNode = { viewModel.onAddNode(it) },
                                                         onRemoveNode = { viewModel.onRemoveNode(it) },
@@ -432,10 +425,27 @@ fun BackgroundTaskView(
                                                                 name
                                                             )
                                                         },
-                                                        onSwitchProfile = { viewModel.onSwitchProfile(it) },
-                                                        onRenameProfile = { id, name -> viewModel.onRenameProfile(id, name) },
-                                                        onDuplicateProfile = { viewModel.onDuplicateProfile(it) },
-                                                        onDeleteProfile = { viewModel.onDeleteProfile(it) },
+                                                        onSwitchProfile = {
+                                                            viewModel.onSwitchProfile(
+                                                                it
+                                                            )
+                                                        },
+                                                        onRenameProfile = { id, name ->
+                                                            viewModel.onRenameProfile(
+                                                                id,
+                                                                name
+                                                            )
+                                                        },
+                                                        onDuplicateProfile = {
+                                                            viewModel.onDuplicateProfile(
+                                                                it
+                                                            )
+                                                        },
+                                                        onDeleteProfile = {
+                                                            viewModel.onDeleteProfile(
+                                                                it
+                                                            )
+                                                        },
                                                         onCreateProfile = { viewModel.onCreateProfile() }
                                                     )
                                                 }
@@ -466,7 +476,7 @@ fun BackgroundTaskView(
                                     Button(
                                         onClick = {
                                             focusManager.clearFocus()
-                                            when (state.currentTab) {
+                                            when (state.current) {
                                                 PanelTab.TASKS -> viewModel.onStartTasks()
                                                 PanelTab.AUTO_BATTLE -> copilotViewModel.onStart()
                                                 PanelTab.TOOLS -> miniGameViewModel.onStart()
@@ -490,7 +500,7 @@ fun BackgroundTaskView(
 
                                     OutlinedButton(
                                         onClick = {
-                                            when (state.currentTab) {
+                                            when (state.current) {
                                                 PanelTab.TASKS -> viewModel.onStopTasks()
                                                 PanelTab.AUTO_BATTLE -> copilotViewModel.onStop()
                                                 PanelTab.TOOLS -> miniGameViewModel.onStop()
@@ -512,7 +522,8 @@ fun BackgroundTaskView(
                                         modifier = Modifier.size(36.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Filled.MoreVert, contentDescription = "更多操作"
+                                            imageVector = Icons.Filled.MoreVert,
+                                            contentDescription = "更多操作"
                                         )
                                     }
                                 }
@@ -520,8 +531,14 @@ fun BackgroundTaskView(
                         }
                     } else {
                         // 初始化中的骨架占位
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(modifier = Modifier.size(32.dp), strokeWidth = 2.dp)
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(32.dp),
+                                strokeWidth = 2.dp
+                            )
                         }
                     }
                 }
@@ -535,31 +552,10 @@ fun BackgroundTaskView(
         BackgroundMoreActionsOverlay(
             visible = showMoreActions,
             onDismissRequest = { showMoreActions = false },
-            muteOnGameLaunch = muteOnGameLaunch,
-            onMuteOnGameLaunchChange = {
-                coroutineScope.launch { appSettingsManager.setMuteOnGameLaunch(it) }
-            },
-            closeAppOnTaskEnd = closeAppOnTaskEnd,
-            onCloseAppOnTaskEndChange = {
-                coroutineScope.launch { appSettingsManager.setCloseAppOnTaskEnd(it) }
-            },
-            useHardwareScreenOff = useHardwareScreenOff,
-            onUseHardwareScreenOffChange = { checked ->
-                if (checked) {
-                    showHardwareScreenOffConfirm = true
-                } else {
-                    coroutineScope.launch { appSettingsManager.setUseHardwareScreenOff(false) }
-                }
-            },
             onMuteGameSound = viewModel::onMuteGameSound,
             onUnmuteGameSound = viewModel::onUnmuteGameSound,
-            onScreenOff = {
-                if (useHardwareScreenOff) {
-                    viewModel.onScreenOff()
-                } else {
-                    screenSaverOverlayManager.show()
-                }
-            },
+            onScreenOff = viewModel::onScreenOff,
+            onShowScreenSaver = screenSaverOverlayManager::show,
             onCloseApp = {
                 if (maaState == MaaExecutionState.RUNNING) {
                     showCloseConfirm = true
@@ -567,10 +563,6 @@ fun BackgroundTaskView(
                     coroutineScope.launch { compositionService.stopVirtualDisplay() }
                 }
             },
-            showTouchPreview = showTouchPreview,
-            onShowTouchPreviewChange = {
-                coroutineScope.launch { appSettingsManager.setShowTouchPreview(it) }
-            }
         )
 
         // 全屏预览
@@ -623,7 +615,12 @@ fun BackgroundTaskView(
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull() ?: continue
                                 val coords = viewToVirtualDisplay(
-                                    change.position.x, change.position.y, size.width, size.height
+                                    viewX = change.position.x,
+                                    viewY = change.position.y,
+                                    viewWidth = size.width,
+                                    viewHeight = size.height,
+                                    bufferWidth = displayResolution.width,
+                                    bufferHeight = displayResolution.height
                                 ) ?: continue
                                 when (event.type) {
                                     PointerEventType.Press -> viewModel.onTouchDown(
@@ -704,31 +701,19 @@ fun BackgroundTaskView(
             )
         }
 
-        if (showHardwareScreenOffConfirm) {
-            AdaptiveTaskPromptDialog(
-                visible = true,
-                title = "确认开启硬件熄屏？",
-                message = AnnotatedString("开启后屏幕将完全熄灭，进入极致省电状态。\n• 唤醒说明：需按两次电源键（先亮锁屏，再解锁定）。\n• 屏保模式：不开启则显示屏保时钟，可随时查看任务进度与电量。"),
-                onDismissRequest = { showHardwareScreenOffConfirm = false },
-                onConfirm = {
-                    showHardwareScreenOffConfirm = false
-                    coroutineScope.launch { appSettingsManager.setUseHardwareScreenOff(true) }
-                },
-                confirmText = "确认",
-                dismissText = "取消",
-                icon = Icons.Filled.PowerSettingsNew,
-                iconTint = MaterialTheme.colorScheme.primary,
-                confirmColor = MaterialTheme.colorScheme.primary,
-            )
-        }
     }
 }
 
 private fun viewToVirtualDisplay(
-    viewX: Float, viewY: Float, viewWidth: Int, viewHeight: Int
+    viewX: Float,
+    viewY: Float,
+    viewWidth: Int,
+    viewHeight: Int,
+    bufferWidth: Int,
+    bufferHeight: Int,
 ): Pair<Int, Int>? {
-    val bufferW = DefaultDisplayConfig.WIDTH.toFloat()
-    val bufferH = DefaultDisplayConfig.HEIGHT.toFloat()
+    val bufferW = bufferWidth.toFloat()
+    val bufferH = bufferHeight.toFloat()
     val scale = minOf(viewWidth / bufferW, viewHeight / bufferH)
     val offsetX = (viewWidth - bufferW * scale) / 2f
     val offsetY = (viewHeight - bufferH * scale) / 2f
@@ -743,19 +728,20 @@ private fun viewToVirtualDisplay(
 private fun BackgroundMoreActionsOverlay(
     visible: Boolean,
     onDismissRequest: () -> Unit,
-    muteOnGameLaunch: Boolean,
-    onMuteOnGameLaunchChange: (Boolean) -> Unit,
-    closeAppOnTaskEnd: Boolean,
-    onCloseAppOnTaskEndChange: (Boolean) -> Unit,
-    useHardwareScreenOff: Boolean,
-    onUseHardwareScreenOffChange: (Boolean) -> Unit,
-    showTouchPreview: Boolean,
-    onShowTouchPreviewChange: (Boolean) -> Unit,
     onMuteGameSound: () -> Unit,
     onUnmuteGameSound: () -> Unit,
     onScreenOff: () -> Unit,
+    onShowScreenSaver: () -> Unit,
     onCloseApp: () -> Unit,
+    appSettingsManager: AppSettingsManager = koinInject(),
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    val muteOnGameLaunch by appSettingsManager.muteOnGameLaunch.collectAsStateWithLifecycle()
+    val closeAppOnTaskEnd by appSettingsManager.closeAppOnTaskEnd.collectAsStateWithLifecycle()
+    val useHardwareScreenOff by appSettingsManager.useHardwareScreenOff.collectAsStateWithLifecycle()
+    val showTouchPreview by appSettingsManager.showTouchPreview.collectAsStateWithLifecycle()
+    var showHardwareScreenOffConfirm by remember { mutableStateOf(false) }
+
     val overlayInteractionSource = remember { MutableInteractionSource() }
     val cardInteractionSource = remember { MutableInteractionSource() }
 
@@ -822,7 +808,9 @@ private fun BackgroundMoreActionsOverlay(
                         ActionTile(
                             icon = Icons.Filled.PowerSettingsNew,
                             label = "熄屏挂机",
-                            onClick = onScreenOff,
+                            onClick = {
+                                if (useHardwareScreenOff) onScreenOff() else onShowScreenSaver()
+                            },
                             modifier = Modifier.weight(1f),
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onSurface
@@ -881,29 +869,63 @@ private fun BackgroundMoreActionsOverlay(
                         icon = Icons.Filled.NotificationsPaused,
                         label = "游戏启动时关闭游戏声音",
                         checked = muteOnGameLaunch,
-                        onCheckedChange = onMuteOnGameLaunchChange
+                        onCheckedChange = {
+                            coroutineScope.launch { appSettingsManager.setMuteOnGameLaunch(it) }
+                        }
                     )
                     SettingSwitchRow(
                         icon = Icons.Filled.Cancel,
                         label = "任务结束后关闭游戏",
                         checked = closeAppOnTaskEnd,
-                        onCheckedChange = onCloseAppOnTaskEndChange
+                        onCheckedChange = {
+                            coroutineScope.launch { appSettingsManager.setCloseAppOnTaskEnd(it) }
+                        }
                     )
                     SettingSwitchRow(
                         icon = Icons.Filled.StayCurrentPortrait,
                         label = "熄屏挂机时关闭屏幕",
                         checked = useHardwareScreenOff,
-                        onCheckedChange = onUseHardwareScreenOffChange
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                showHardwareScreenOffConfirm = true
+                            } else {
+                                coroutineScope.launch {
+                                    appSettingsManager.setUseHardwareScreenOff(
+                                        false
+                                    )
+                                }
+                            }
+                        }
                     )
                     SettingSwitchRow(
                         icon = Icons.Filled.TouchApp,
                         label = "显示触摸预览",
                         checked = showTouchPreview,
-                        onCheckedChange = onShowTouchPreviewChange
+                        onCheckedChange = {
+                            coroutineScope.launch { appSettingsManager.setShowTouchPreview(it) }
+                        }
                     )
                 }
             }
         }
+    }
+
+    if (showHardwareScreenOffConfirm) {
+        AdaptiveTaskPromptDialog(
+            visible = true,
+            title = "确认开启硬件熄屏？",
+            message = AnnotatedString("开启后屏幕将完全熄灭，进入极致省电状态。\n• 唤醒说明：需按两次电源键（先亮锁屏，再解锁定）。\n• 屏保模式：不开启则显示屏保时钟，可随时查看任务进度与电量。"),
+            onDismissRequest = { showHardwareScreenOffConfirm = false },
+            onConfirm = {
+                showHardwareScreenOffConfirm = false
+                coroutineScope.launch { appSettingsManager.setUseHardwareScreenOff(true) }
+            },
+            confirmText = "确认",
+            dismissText = "取消",
+            icon = Icons.Filled.PowerSettingsNew,
+            iconTint = MaterialTheme.colorScheme.primary,
+            confirmColor = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 

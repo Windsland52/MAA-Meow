@@ -372,9 +372,13 @@ private fun SettingSwitchItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = MaaDesignTokens.Spacing.listItemVertical),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = if (description != null) Arrangement.spacedBy(4.dp) else Arrangement.Top
+        ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,

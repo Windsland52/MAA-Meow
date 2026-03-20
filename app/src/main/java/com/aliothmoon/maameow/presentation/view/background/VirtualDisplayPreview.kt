@@ -18,22 +18,26 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aliothmoon.maameow.domain.service.AppWatchdog
+import org.koin.compose.koinInject
 
 @Composable
 fun VirtualDisplayPreview(
+    modifier: Modifier = Modifier,
     isRunning: Boolean,
     isSurfaceAvailable: Boolean,
-    watchdogState: AppWatchdog.WatchdogState,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+    appWatchdog: AppWatchdog = koinInject(),
     content: @Composable () -> Unit
 ) {
+    val watchdogState by appWatchdog.state.collectAsStateWithLifecycle()
     BoxWithConstraints(
         modifier = modifier,
         contentAlignment = Alignment.Center

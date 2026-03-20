@@ -1,5 +1,6 @@
 package com.aliothmoon.maameow;
 
+import android.content.Intent;
 import android.view.Surface;
 import com.aliothmoon.maameow.ITouchEventCallback;
 import com.aliothmoon.maameow.MaaCoreService;
@@ -55,4 +56,6 @@ interface RemoteService {
     void setVirtualDisplayResolution(int width, int height, int dpi) = 25;
 
     oneway void setTouchCallback(ITouchEventCallback callback) = 26;
+
+    boolean startActivity(in Intent intent) = 27;
 }

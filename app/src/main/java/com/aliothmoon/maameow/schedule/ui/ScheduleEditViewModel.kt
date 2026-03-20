@@ -24,6 +24,7 @@ import java.util.UUID
 
 data class ScheduleEditUiState(
     val isNew: Boolean = true,
+    val strategyId: String? = null,
     val name: String = "",
     val daysOfWeek: Set<DayOfWeek> = emptySet(),
     val executionTimes: List<LocalTime> = emptyList(),
@@ -39,13 +40,15 @@ data class ScheduleEditUiState(
 class ScheduleEditViewModel(
     private val repository: ScheduleStrategyRepository,
     private val taskChainState: TaskChainState,
-    private val context: Context
+    private val context: Context,
+    private val scheduleAlarmManager: ScheduleAlarmManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ScheduleEditUiState())
     val state: StateFlow<ScheduleEditUiState> = _state.asStateFlow()
 
     private var strategyId: String? = null
+    private var existingStrategy: ScheduleStrategy? = null
 
     /** 加载已有策略（编辑模式），或初始化默认选择（新建模式） */
     fun loadStrategy(id: String?) {
@@ -60,8 +63,10 @@ class ScheduleEditViewModel(
                 val strategy = repository.getById(id)
                 if (strategy != null) {
                     strategyId = id
+                    existingStrategy = strategy
                     _state.value = ScheduleEditUiState(
                         isNew = false,
+                        strategyId = id,
                         name = strategy.name,
                         daysOfWeek = strategy.daysOfWeek,
                         executionTimes = strategy.executionTimes,
@@ -72,6 +77,7 @@ class ScheduleEditViewModel(
                 }
             }
             // 新建策略 — 默认选中当前活跃 Profile
+            existingStrategy = null
             val defaultName = "定时任务-${repository.strategies.value.size + 1}"
             _state.value = ScheduleEditUiState(
                 name = defaultName,
@@ -153,13 +159,18 @@ class ScheduleEditViewModel(
 
         viewModelScope.launch {
             runCatching {
-                val strategy = ScheduleStrategy(
+                val strategy = existingStrategy?.copy(
+                    name = current.name.trim(),
+                    daysOfWeek = current.daysOfWeek,
+                    executionTimes = current.executionTimes,
+                    profileId = current.selectedProfileId,
+                ) ?: ScheduleStrategy(
                     id = strategyId ?: UUID.randomUUID().toString(),
                     name = current.name.trim(),
                     enabled = true,
                     daysOfWeek = current.daysOfWeek,
                     executionTimes = current.executionTimes,
-                    profileId = current.selectedProfileId
+                    profileId = current.selectedProfileId,
                 )
 
                 if (current.isNew) {
@@ -168,7 +179,7 @@ class ScheduleEditViewModel(
                     repository.update(strategy)
                 }
 
-                ScheduleAlarmManager(context).scheduleNext(strategy)
+                scheduleAlarmManager.scheduleNext(strategy)
 
                 // 检查关键权限
                 val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager

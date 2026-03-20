@@ -155,10 +155,11 @@ class MaaCompositionService(
         }
     }
 
-    suspend fun start(tasks: List<MaaTaskParams>, clientType: String = taskChainState.getClientType()): StartResult {
+    suspend fun start(tasks: List<MaaTaskParams>, clientType: String = taskChainState.getClientType(), onSessionStarted: (suspend () -> Unit)? = null): StartResult {
         setRunState(MaaExecutionState.STARTING)
         val taskNames = tasks.map { it.type.value }
         runtimeLogCenter.startSession(taskNames)
+        onSessionStarted?.invoke()
         runtimeLogCenter.appendAndWait("开始执行任务，共 ${tasks.size} 项", LogLevel.INFO)
         return withContext(Dispatchers.IO) {
             activityManager.runIfDirty {

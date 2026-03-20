@@ -5,7 +5,7 @@ import com.aliothmoon.maameow.presentation.view.panel.PanelTab
 
 data class BackgroundTaskState(
     val selectedNodeId: String? = null,
-    val currentTab: PanelTab = PanelTab.TASKS,
+    val current: PanelTab = PanelTab.TASKS,
     val isFullscreenMonitor: Boolean = false,
     val isEditMode: Boolean = false,
     val isAddingTask: Boolean = false,

@@ -7,9 +7,37 @@ import com.aliothmoon.maameow.third.Ln
 import com.aliothmoon.maameow.third.wrappers.ServiceManager
 
 object ActivityUtils {
+    /**
+     * 以 shell 身份启动指定 Intent 的 Activity，绕过 BAL 限制。
+     */
     @JvmStatic
     @JvmOverloads
-    fun startApp(packageName: String, displayId: Int, forceStop: Boolean = true, excludeFromRecents: Boolean = true): Boolean {
+    fun startActivity(intent: Intent, displayId: Int = 0): Boolean {
+        val am = ServiceManager.getActivityManager()
+        try {
+            val launchOptions = ActivityOptions.makeBasic()
+            if (displayId != 0) {
+                launchOptions.setLaunchDisplayId(displayId)
+            }
+            val ret = am.startActivity(intent, launchOptions.toBundle())
+            if (ret != 0) {
+                return startViaAmCommand(intent, displayId)
+            }
+            return true
+        } catch (e: Exception) {
+            Ln.w("startActivity failed, fallback to am command", e)
+            return startViaAmCommand(intent, displayId)
+        }
+    }
+
+    @JvmStatic
+    @JvmOverloads
+    fun startApp(
+        packageName: String,
+        displayId: Int,
+        forceStop: Boolean = true,
+        excludeFromRecents: Boolean = true
+    ): Boolean {
         val pm = FakeContext.get().packageManager
 
         val intent = pm.getLaunchIntentForPackage(packageName) ?: run {
@@ -30,37 +58,24 @@ object ActivityUtils {
         }
         intent.addFlags(flag)
 
-        val am = ServiceManager.getActivityManager()
         if (forceStop) {
-            am.forceStopPackage(packageName)
+            ServiceManager.getActivityManager().forceStopPackage(packageName)
         }
         Ln.i("startApp ${intent.component?.flattenToShortString()}")
 
-        try {
-            val launchOptions = ActivityOptions.makeBasic()
-            launchOptions.setLaunchDisplayId(displayId)
-            val options = launchOptions.toBundle()
-            val ret = am.startActivity(intent, options)
-            if (ret != 0) {
-                return startAppViaAmCommand(intent, displayId)
-            }
-            return true
-        } catch (e: Exception) {
-            Ln.w("startActivity failed, fallback to am command", e)
-            return startAppViaAmCommand(intent, displayId)
-        }
+        return startActivity(intent, displayId)
     }
 
-    /**
-     * ActivityManagerService 有过调整兼容实现较复杂
-     */
-    private fun startAppViaAmCommand(intent: Intent, displayId: Int): Boolean {
+    private fun startViaAmCommand(intent: Intent, displayId: Int): Boolean {
         try {
             val component = intent.component ?: return false
-            val cmd = "am start" +
-                    " --display $displayId" +
-                    " -n ${component.flattenToShortString()}" +
-                    " -f ${intent.flags}"
+            val cmd = buildString {
+                append("am start")
+                append(" --display $displayId")
+                intent.action?.let { append(" -a $it") }
+                append(" -n ${component.flattenToShortString()}")
+                append(" -f ${intent.flags}")
+            }
             Ln.d("Executing: $cmd")
             val process = Runtime.getRuntime().exec(cmd)
             val exitCode = process.waitFor()
