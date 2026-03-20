@@ -3,10 +3,6 @@ package com.aliothmoon.maameow.presentation.view.background
 import android.app.Activity
 import android.content.res.Configuration
 import android.content.pm.ActivityInfo
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -20,8 +16,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.aspectRatio
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -67,6 +62,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -230,10 +226,13 @@ fun BackgroundTaskView(
         }
     }
 
-    LaunchedEffect(canShowTaskActions, showCloseConfirm, state.isFullscreenMonitor, state.dialog) {
-        if (!canShowTaskActions || showCloseConfirm || state.isFullscreenMonitor || state.dialog != null) {
-            showMoreActions = false
+    val shouldHideMoreActions by remember {
+        derivedStateOf {
+            !canShowTaskActions || showCloseConfirm || state.isFullscreenMonitor || state.dialog != null
         }
+    }
+    LaunchedEffect(shouldHideMoreActions) {
+        if (shouldHideMoreActions) showMoreActions = false
     }
 
 
@@ -242,6 +241,7 @@ fun BackgroundTaskView(
 
     val previewContent = remember {
         movableContentOf {
+            val innerScope = rememberCoroutineScope()
             Box(
                 modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center
             ) {
@@ -253,7 +253,7 @@ fun BackgroundTaskView(
                                 holder.addCallback(object : SurfaceHolder.Callback {
                                     override fun surfaceCreated(holder: SurfaceHolder) {
                                         isSurfaceAvailable = true
-                                        coroutineScope.launch {
+                                        innerScope.launch {
                                             delay(50)
                                             holder.setFixedSize(
                                                 DefaultDisplayConfig.WIDTH,
@@ -284,7 +284,7 @@ fun BackgroundTaskView(
                         },
                         modifier = Modifier.fillMaxSize()
                     )
-                    TouchPreviewOverlay(
+                    if (markers.isNotEmpty()) TouchPreviewOverlay(
                         markers = markers,
                         displayResolution = displayResolution,
                         modifier = Modifier.fillMaxSize()
@@ -354,23 +354,19 @@ fun BackgroundTaskView(
                     showActions = false
                 )
 
-                Crossfade(
-                    targetState = isInitialized,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    animationSpec = tween(300),
-                    label = "ContentCrossfade"
-                ) { initialized ->
-                    if (initialized) {
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            HorizontalPager(
+                if (isInitialized) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    ) {
+                        HorizontalPager(
                                 state = pagerState,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .weight(1f),
                                 userScrollEnabled = true,
-                                beyondViewportPageCount = 1
+                                beyondViewportPageCount = 0
                             ) { page ->
                                 when (page) {
                                     0 -> {
@@ -529,17 +525,18 @@ fun BackgroundTaskView(
                                 }
                             }
                         }
-                    } else {
-                        // 初始化中的骨架占位
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(32.dp),
-                                strokeWidth = 2.dp
-                            )
-                        }
+                } else {
+                    // 初始化中的骨架占位
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(32.dp),
+                            strokeWidth = 2.dp
+                        )
                     }
                 }
             }
@@ -549,21 +546,22 @@ fun BackgroundTaskView(
             showMoreActions = false
         }
 
-        BackgroundMoreActionsOverlay(
-            visible = showMoreActions,
-            onDismissRequest = { showMoreActions = false },
-            onMuteGameSound = viewModel::onMuteGameSound,
-            onUnmuteGameSound = viewModel::onUnmuteGameSound,
-            onScreenOff = viewModel::onScreenOff,
-            onShowScreenSaver = screenSaverOverlayManager::show,
-            onCloseApp = {
-                if (maaState == MaaExecutionState.RUNNING) {
-                    showCloseConfirm = true
-                } else {
-                    coroutineScope.launch { compositionService.stopVirtualDisplay() }
-                }
-            },
-        )
+        if (showMoreActions) {
+            BackgroundMoreActionsOverlay(
+                onDismissRequest = { showMoreActions = false },
+                onMuteGameSound = viewModel::onMuteGameSound,
+                onUnmuteGameSound = viewModel::onUnmuteGameSound,
+                onScreenOff = viewModel::onScreenOff,
+                onShowScreenSaver = screenSaverOverlayManager::show,
+                onCloseApp = {
+                    if (maaState == MaaExecutionState.RUNNING) {
+                        showCloseConfirm = true
+                    } else {
+                        coroutineScope.launch { compositionService.stopVirtualDisplay() }
+                    }
+                },
+            )
+        }
 
         // 全屏预览
         if (state.isFullscreenMonitor) {
@@ -614,28 +612,23 @@ fun BackgroundTaskView(
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull() ?: continue
-                                val coords = viewToVirtualDisplay(
+                                viewToVirtualDisplay(
                                     viewX = change.position.x,
                                     viewY = change.position.y,
                                     viewWidth = size.width,
                                     viewHeight = size.height,
                                     bufferWidth = displayResolution.width,
                                     bufferHeight = displayResolution.height
-                                ) ?: continue
-                                when (event.type) {
-                                    PointerEventType.Press -> viewModel.onTouchDown(
-                                        coords.first, coords.second
-                                    )
-
-                                    PointerEventType.Move -> {
-                                        if (change.pressed) {
-                                            viewModel.onTouchMove(coords.first, coords.second)
+                                ) { vx, vy ->
+                                    when (event.type) {
+                                        PointerEventType.Press -> viewModel.onTouchDown(vx, vy)
+                                        PointerEventType.Move -> {
+                                            if (change.pressed) {
+                                                viewModel.onTouchMove(vx, vy)
+                                            }
                                         }
+                                        PointerEventType.Release -> viewModel.onTouchUp(vx, vy)
                                     }
-
-                                    PointerEventType.Release -> viewModel.onTouchUp(
-                                        coords.first, coords.second
-                                    )
                                 }
                                 change.consume()
                             }
@@ -704,14 +697,15 @@ fun BackgroundTaskView(
     }
 }
 
-private fun viewToVirtualDisplay(
+private inline fun viewToVirtualDisplay(
     viewX: Float,
     viewY: Float,
     viewWidth: Int,
     viewHeight: Int,
     bufferWidth: Int,
     bufferHeight: Int,
-): Pair<Int, Int>? {
+    block: (vx: Int, vy: Int) -> Unit,
+) {
     val bufferW = bufferWidth.toFloat()
     val bufferH = bufferHeight.toFloat()
     val scale = minOf(viewWidth / bufferW, viewHeight / bufferH)
@@ -719,14 +713,13 @@ private fun viewToVirtualDisplay(
     val offsetY = (viewHeight - bufferH * scale) / 2f
     val vx = ((viewX - offsetX) / scale).toInt()
     val vy = ((viewY - offsetY) / scale).toInt()
-    if (vx < 0 || vx >= bufferW.toInt() || vy < 0 || vy >= bufferH.toInt()) return null
-    return vx to vy
+    if (vx < 0 || vx >= bufferW.toInt() || vy < 0 || vy >= bufferH.toInt()) return
+    block(vx, vy)
 }
 
 
 @Composable
 private fun BackgroundMoreActionsOverlay(
-    visible: Boolean,
     onDismissRequest: () -> Unit,
     onMuteGameSound: () -> Unit,
     onUnmuteGameSound: () -> Unit,
@@ -748,48 +741,29 @@ private fun BackgroundMoreActionsOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .then(
-                if (visible) {
-                    Modifier.clickable(
-                        interactionSource = overlayInteractionSource,
-                        indication = null,
-                        onClick = onDismissRequest
-                    )
-                } else {
-                    Modifier
-                }
+            .clickable(
+                interactionSource = overlayInteractionSource,
+                indication = null,
+                onClick = onDismissRequest
             )
     ) {
-        AnimatedVisibility(
-            visible = visible,
-            enter = fadeIn(animationSpec = tween(160)) + slideInVertically(
-                animationSpec = tween(220, easing = FastOutSlowInEasing),
-                initialOffsetY = { it / 4 }
-            ),
-            exit = fadeOut(animationSpec = tween(140)) + slideOutVertically(
-                animationSpec = tween(180, easing = FastOutSlowInEasing),
-                targetOffsetY = { it / 4 }
-            ),
+        Card(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(start = 16.dp, end = 16.dp, bottom = 64.dp)
-        ) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = cardInteractionSource,
-                        indication = null,
-                        onClick = {}
-                    ),
-                shape = RoundedCornerShape(4.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                .clickable(
+                    interactionSource = cardInteractionSource,
+                    indication = null,
+                    onClick = {}
                 ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
+            shape = RoundedCornerShape(4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
                 Column(modifier = Modifier.padding(10.dp)) {
                     // 标题与快速操作组
                     Text(
@@ -908,7 +882,6 @@ private fun BackgroundMoreActionsOverlay(
                 }
             }
         }
-    }
 
     if (showHardwareScreenOffConfirm) {
         AdaptiveTaskPromptDialog(

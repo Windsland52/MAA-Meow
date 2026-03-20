@@ -87,6 +87,7 @@ class MaaResourceLoader(
                 }
             }
         } catch (e: Exception) {
+            Timber.e(e, "MaaResourceLoader error")
             _state.value = State.Failed(e.message ?: "Resource loading exception")
             Result.failure(e)
         }

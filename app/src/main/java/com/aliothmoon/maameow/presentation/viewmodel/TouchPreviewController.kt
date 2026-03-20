@@ -34,14 +34,20 @@ class TouchPreviewController(
                 ) {
                     return
                 }
-                _markers.update { markers ->
-                    (markers + PreviewTouchMarker(
-                        id = markerId.incrementAndGet(),
-                        x = x,
-                        y = y,
-                        action = type,
-                        createdAtMs = SystemClock.elapsedRealtime()
-                    )).takeLast(PreviewTouchMarker.MAX_ACTIVE_MARKERS)
+                val newMarker = PreviewTouchMarker(
+                    id = markerId.incrementAndGet(),
+                    x = x,
+                    y = y,
+                    action = type,
+                    createdAtMs = SystemClock.elapsedRealtime()
+                )
+                _markers.update { current ->
+                    val max = PreviewTouchMarker.MAX_ACTIVE_MARKERS
+                    buildList(max) {
+                        val start = if (current.size >= max) current.size - max + 1 else 0
+                        for (i in start until current.size) add(current[i])
+                        add(newMarker)
+                    }
                 }
                 ensureCleanupJob()
             }
