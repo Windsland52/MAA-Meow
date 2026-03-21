@@ -268,9 +268,9 @@ class MaaCompositionService(
         }
     }
 
-    suspend fun startCopilot(task: MaaTaskParams, clientType: String = taskChainState.getClientType()): StartResult {
+    suspend fun startCopilot(tasks: List<MaaTaskParams>, clientType: String = taskChainState.getClientType()): StartResult {
         setRunState(MaaExecutionState.STARTING)
-        runtimeLogCenter.startSession(listOf(task.type.value))
+        runtimeLogCenter.startSession(tasks.map { it.type.value })
         runtimeLogCenter.appendAndWait("开始执行自动战斗", LogLevel.INFO)
         return withContext(Dispatchers.IO) {
             activityManager.runIfDirty {
@@ -355,8 +355,10 @@ class MaaCompositionService(
                     return@useRemoteService StartResult.ConnectionError(StartResult.ConnectionError.ConnectPhase.MAA_CONNECT)
                 }
 
-                runtimeLogCenter.appendToFileOnly("[TaskParams] ${task.type.value}: ${task.params}")
-                maa.AppendTask(task.type.value, task.params)
+                tasks.forEach { task ->
+                    runtimeLogCenter.appendToFileOnly("[TaskParams] ${task.type.value}: ${task.params}")
+                    maa.AppendTask(task.type.value, task.params)
+                }
                 if (!maa.Start()) {
                     setRunState(MaaExecutionState.ERROR)
                     runtimeLogCenter.appendAndWait("MaaCore 启动失败", LogLevel.ERROR)

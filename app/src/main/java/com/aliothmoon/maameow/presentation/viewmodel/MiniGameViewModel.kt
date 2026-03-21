@@ -82,7 +82,7 @@ class MiniGameViewModel(
         viewModelScope.launch {
             val task = buildTaskParams()
             _state.update { it.copy(statusMessage = "正在启动...") }
-            when (val result = compositionService.startCopilot(task)) {
+            when (val result = compositionService.startCopilot(listOf(task))) {
                 is MaaCompositionService.StartResult.Success -> {
                     _state.update { it.copy(statusMessage = "小游戏任务已启动") }
                 }

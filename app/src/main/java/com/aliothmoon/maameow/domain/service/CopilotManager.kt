@@ -223,45 +223,59 @@ class CopilotManager(
         tabIndex: Int,
         items: List<CopilotListItem>,
         config: CopilotConfig
-    ): MaaTaskParams {
+    ): List<MaaTaskParams> {
         val checkedItems = items.filter { it.isChecked }
-        if (tabIndex == 2) {
-            return MaaTaskParams(
-                type = MaaTaskType.PARADOX_COPILOT,
-                params = buildJsonObject {
-                    put("list", buildJsonArray {
-                        checkedItems.forEach { item ->
-                            add(JsonPrimitive(item.filePath))
-                        }
-                    })
-                }.toString()
+        if (tabIndex == 1) { // TAB_SSS — MAA Core SSSCopilot 只接受单个 filename，逐个提交
+            return checkedItems.map { item ->
+                MaaTaskParams(
+                    type = MaaTaskType.SSS_COPILOT,
+                    params = buildJsonObject {
+                        put("filename", item.filePath)
+                    }.toString()
+                )
+            }
+        }
+        if (tabIndex == 2) { // TAB_PARADOX
+            return listOf(
+                MaaTaskParams(
+                    type = MaaTaskType.PARADOX_COPILOT,
+                    params = buildJsonObject {
+                        put("list", buildJsonArray {
+                            checkedItems.forEach { item ->
+                                add(JsonPrimitive(item.filePath))
+                            }
+                        })
+                    }.toString()
+                )
             )
         }
 
-        return MaaTaskParams(
-            type = MaaTaskType.COPILOT,
-            params = buildJsonObject {
-                put("copilot_list", buildJsonArray {
-                    checkedItems.forEach { item ->
-                        add(buildJsonObject {
-                            put("filename", item.filePath)
-                            put("stage_name", item.name)
-                            put("is_raid", item.isRaid)
-                        })
+        return listOf(
+            MaaTaskParams(
+                type = MaaTaskType.COPILOT,
+                params = buildJsonObject {
+                    put("copilot_list", buildJsonArray {
+                        checkedItems.forEach { item ->
+                            add(buildJsonObject {
+                                put("filename", item.filePath)
+                                put("stage_name", item.name)
+                                put("is_raid", item.isRaid)
+                            })
+                        }
+                    })
+                    put("formation", config.formation)
+                    put("support_unit_usage", if (config.useSupportUnit) config.supportUnitUsage else 0)
+                    put("add_trust", config.addTrust)
+                    put("ignore_requirements", config.ignoreRequirements)
+                    // 与 WPF 一致：战斗列表模式固定单次消费，不复用单作业循环次数配置
+                    put("loop_times", 1)
+                    put("use_sanity_potion", config.useSanityPotion)
+                    if (config.useFormation) {
+                        put("formation_index", config.formationIndex)
                     }
-                })
-                put("formation", config.formation)
-                put("support_unit_usage", if (config.useSupportUnit) config.supportUnitUsage else 0)
-                put("add_trust", config.addTrust)
-                put("ignore_requirements", config.ignoreRequirements)
-                // 与 WPF 一致：战斗列表模式固定单次消费，不复用单作业循环次数配置
-                put("loop_times", 1)
-                put("use_sanity_potion", config.useSanityPotion)
-                if (config.useFormation) {
-                    put("formation_index", config.formationIndex)
-                }
-                put("user_additional", parseUserAdditional(config))
-            }.toString()
+                    put("user_additional", parseUserAdditional(config))
+                }.toString()
+            )
         )
     }
 

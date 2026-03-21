@@ -33,6 +33,28 @@ private val STAGE_NAME_REGEX =
         """[a-z]{0,3}\d{0,2}-(?:(?:A|B|C|D|EX|S|TR|MO)-?)?\d{1,2}""",
         RegexOption.IGNORE_CASE
     )
+private val SIDE_STORY_STAGE_ID_REGEX = Regex("""^(act\d+(side|mini)|a00\d+)_""")
+private val MAIN_STAGE_ID_REGEX = Regex("""^(main|sub|tough|hard)_""")
+
+private enum class CopilotType(val tabIndex: Int) {
+    UNKNOWN(-1),
+    MAIN_AND_SIDE_STORY(TAB_MAIN),
+    SSS(TAB_SSS),
+    PARADOX(TAB_PARADOX),
+    OTHER(TAB_OTHER_ACTIVITY),
+}
+
+private fun getCopilotTypeFromStageId(stageId: String?): CopilotType {
+    if (stageId.isNullOrBlank()) return CopilotType.UNKNOWN
+    return when {
+        stageId.startsWith("mem_", ignoreCase = true) -> CopilotType.PARADOX
+        stageId.startsWith("lt_", ignoreCase = true) -> CopilotType.SSS
+        MAIN_STAGE_ID_REGEX.containsMatchIn(stageId) -> CopilotType.MAIN_AND_SIDE_STORY
+        SIDE_STORY_STAGE_ID_REGEX.containsMatchIn(stageId) -> CopilotType.MAIN_AND_SIDE_STORY
+        else -> CopilotType.UNKNOWN
+    }
+}
+
 private const val MSG_NAVIGATION_NAME_MISMATCH =
     """当前作业关卡名与导航关卡名不一致，请确认是否仍可正确导航"""
 
@@ -86,9 +108,7 @@ class CopilotViewModel(
         private const val MSG_COPILOT_JSON_ERROR = "解析作业文件错误！"
         private const val MSG_EMPTY_LIST = "正在使用 ｢战斗列表｣, 但未添加任何作业"
         private const val MSG_MIXED_LIST =
-            "正在使用 ｢战斗列表｣，但不允许混用「主线/故事集/SideStory」与「悖论模拟」，请分别在对应页签建立列表后再启动"
-        private const val MSG_LEGACY_LIST =
-            "正在使用 ｢战斗列表｣，但列表包含旧版本条目（缺少页签信息），请在正确的页签重新添加这些作业后再启动"
+            "正在使用 ｢战斗列表｣，不支持混用不同类型作业"
         private const val MSG_TASK_NAME_EMPTY = "存在关卡名为空的作业"
         private const val MSG_RATE_FAILED = "出现错误，评价失败 : <"
         private const val MSG_RATE_SUCCESS = "感谢评价！\n网页已经开放评论区，欢迎前往留下你的评论！"
@@ -253,7 +273,6 @@ class CopilotViewModel(
                                     data = data,
                                     filePath = filePath,
                                     copilotId = copilotId,
-                                    tabIndex = resolvedTabIndex,
                                     source = "web"
                                 )
                             )
@@ -406,7 +425,6 @@ class CopilotViewModel(
             data = data,
             filePath = filePath,
             copilotId = copilotId,
-            tabIndex = tabIndex,
             source = source
         )
         if (newItems.isEmpty()) return
@@ -427,10 +445,10 @@ class CopilotViewModel(
         data: CopilotTaskData,
         filePath: String,
         copilotId: Int,
-        tabIndex: Int,
         source: String
     ): List<CopilotListItem> {
-        return if (tabIndex == TAB_PARADOX) {
+        val isParadox = getCopilotType(data) == CopilotType.PARADOX
+        return if (isParadox) {
             val name = inferParadoxName(data)
             if (name.isBlank()) {
                 emptyList()
@@ -441,7 +459,6 @@ class CopilotViewModel(
                         filePath = filePath,
                         isRaid = false,
                         copilotId = copilotId,
-                        tabIndex = tabIndex,
                         source = source
                     )
                 )
@@ -465,7 +482,6 @@ class CopilotViewModel(
                             filePath = filePath,
                             isRaid = false,
                             copilotId = copilotId,
-                            tabIndex = tabIndex,
                             source = source
                         )
                     )
@@ -477,7 +493,6 @@ class CopilotViewModel(
                             filePath = filePath,
                             isRaid = true,
                             copilotId = copilotId,
-                            tabIndex = tabIndex,
                             source = source
                         )
                     )
@@ -489,7 +504,6 @@ class CopilotViewModel(
                             filePath = filePath,
                             isRaid = false,
                             copilotId = copilotId,
-                            tabIndex = tabIndex,
                             source = source
                         )
                     )
@@ -554,33 +568,27 @@ class CopilotViewModel(
         )
     }
 
-    private fun isSssCopilot(data: CopilotTaskData): Boolean {
-        return data.type.equals("SSS", ignoreCase = true)
-    }
-
-    private fun isParadoxCopilot(data: CopilotTaskData): Boolean {
+    private fun getCopilotType(data: CopilotTaskData): CopilotType {
+        if (data.type.equals("SSS", ignoreCase = true)) return CopilotType.SSS
         val stageId = resolveStageNavigation(data).stageId
-        return stageId?.startsWith("mem_", ignoreCase = true) == true
+        return getCopilotTypeFromStageId(stageId)
     }
 
     private fun resolveLoadedTabIndex(data: CopilotTaskData, currentTabIndex: Int): Int {
-        return when {
-            isSssCopilot(data) -> TAB_SSS
-            isParadoxCopilot(data) -> TAB_PARADOX
-            else -> currentTabIndex
-        }
+        val type = getCopilotType(data)
+        return if (type != CopilotType.UNKNOWN) type.tabIndex else currentTabIndex
     }
 
     private fun inferTaskType(data: CopilotTaskData): MaaTaskType {
-        return when {
-            isSssCopilot(data) -> MaaTaskType.SSS_COPILOT
-            isParadoxCopilot(data) -> MaaTaskType.PARADOX_COPILOT
+        return when (getCopilotType(data)) {
+            CopilotType.SSS -> MaaTaskType.SSS_COPILOT
+            CopilotType.PARADOX -> MaaTaskType.PARADOX_COPILOT
             else -> MaaTaskType.COPILOT
         }
     }
 
     private fun inferLoadedCopilotName(data: CopilotTaskData): String {
-        return if (isParadoxCopilot(data)) {
+        return if (getCopilotType(data) == CopilotType.PARADOX) {
             inferParadoxName(data)
         } else {
             resolveStageNavigation(data).navigateName.ifBlank { data.stageName }
@@ -693,7 +701,6 @@ class CopilotViewModel(
             filePath = filePath,
             isRaid = if (tabIndex == TAB_PARADOX) false else isRaid,
             copilotId = _state.value.copilotId,
-            tabIndex = tabIndex,
             source = if (_state.value.isDataFromWeb) "web" else "local"
         )
         _state.update {
@@ -717,7 +724,7 @@ class CopilotViewModel(
                 onSuccess = { (data, json) ->
                     val previousTabIndex = _state.value.tabIndex
                     val targetTabIndex =
-                        item.tabIndex ?: resolveLoadedTabIndex(data, previousTabIndex)
+                        resolveLoadedTabIndex(data, previousTabIndex)
                     _state.update { current ->
                         val base = applyTabConstraints(current, targetTabIndex)
                         base.copy(
@@ -792,19 +799,19 @@ class CopilotViewModel(
             if (!validateStart(snapshot)) return@launch
 
             val config = buildEffectiveConfig(snapshot)
-            val task = if (snapshot.useCopilotList) {
+            val tasks = if (snapshot.useCopilotList) {
                 val checked = snapshot.taskList.filter { it.isChecked }
                 pendingCopilotIds.clear()
                 pendingCopilotIds.addAll(checked.map { it.copilotId }.filter { it > 0 })
                 copilotManager.buildListTask(snapshot.tabIndex, checked, config)
             } else {
                 val type = resolveSingleTaskType(snapshot)
-                copilotManager.buildSingleTask(type, snapshot.currentFilePath, config)
+                listOf(copilotManager.buildSingleTask(type, snapshot.currentFilePath, config))
             }
 
             runtimeStateStore.resetRequirementIgnored()
             _state.update { it.copy(statusMessage = "正在启动...") }
-            when (val result = compositionService.startCopilot(task)) {
+            when (val result = compositionService.startCopilot(tasks)) {
                 is MaaCompositionService.StartResult.Success -> {
                     _state.update { it.copy(statusMessage = "自动战斗已启动") }
                 }
@@ -849,7 +856,7 @@ class CopilotViewModel(
 
     private suspend fun validateStart(snapshot: CopilotUiState): Boolean {
         if (snapshot.useCopilotList) {
-            return validateTaskListStrict(snapshot.tabIndex, snapshot.taskList)
+            return validateTaskListStrict(snapshot.taskList)
         }
 
         if (snapshot.currentCopilot == null || snapshot.currentFilePath.isBlank()) {
@@ -869,7 +876,6 @@ class CopilotViewModel(
     }
 
     private suspend fun validateTaskListStrict(
-        tabIndex: Int,
         taskList: List<CopilotListItem>
     ): Boolean {
         val selected = taskList.filter { it.isChecked }
@@ -878,35 +884,34 @@ class CopilotViewModel(
             return false
         }
 
-        if (selected.any { it.tabIndex == null }) {
-            _state.update { it.copy(statusMessage = MSG_LEGACY_LIST) }
-            return false
+        // 基于文件内容检测作业类型，而非 tabIndex
+        val types = mutableSetOf<CopilotType>()
+        for (item in selected) {
+            val parsed = copilotManager.parseFromFile(item.filePath)
+            if (parsed.isFailure) {
+                Timber.w("validateTaskListStrict: 无法解析文件 %s", item.filePath)
+                continue
+            }
+            val type = getCopilotType(parsed.getOrThrow().first)
+            if (type != CopilotType.UNKNOWN) {
+                types.add(type)
+            }
         }
 
-        val tabs = selected.mapNotNull { it.tabIndex }.distinct()
-        if (tabs.size > 1) {
+        if (types.size > 1) {
             _state.update { it.copy(statusMessage = MSG_MIXED_LIST) }
             return false
         }
 
-        val listTab = tabs.firstOrNull() ?: tabIndex
-        if (listTab != tabIndex) {
-            _state.update {
-                it.copy(
-                    statusMessage = "正在使用 ｢战斗列表｣，当前页签为「${getCopilotTabName(tabIndex)}」，但列表来自「${
-                        getCopilotTabName(
-                            listTab
-                        )
-                    }」，请切换到对应页签后再启动"
-                )
-            }
-            return false
-        }
-
-        if (tabIndex == TAB_PARADOX) {
+        val detectedType = types.firstOrNull()
+        if (detectedType == CopilotType.PARADOX) {
             return verifyParadoxTasks(selected)
         }
-        return verifyCopilotListTask(selected)
+        if (detectedType == CopilotType.MAIN_AND_SIDE_STORY || detectedType == null) {
+            return verifyCopilotListTask(selected)
+        }
+        // SSS 等类型跳过进一步校验
+        return true
     }
 
     private suspend fun verifyCopilotListTask(items: List<CopilotListItem>): Boolean {
@@ -967,7 +972,7 @@ class CopilotViewModel(
     }
 
     private fun supportsBattleList(tabIndex: Int): Boolean {
-        return tabIndex == TAB_MAIN || tabIndex == TAB_PARADOX
+        return tabIndex == TAB_MAIN || tabIndex == TAB_PARADOX || tabIndex == TAB_SSS
     }
 
     private fun supportsRegularCopilotOptions(tabIndex: Int): Boolean {
@@ -975,7 +980,7 @@ class CopilotViewModel(
     }
 
     private fun supportsCopilotSetImport(tabIndex: Int): Boolean {
-        return tabIndex == TAB_MAIN || tabIndex == TAB_PARADOX
+        return tabIndex == TAB_MAIN || tabIndex == TAB_PARADOX || tabIndex == TAB_SSS
     }
 
     private fun supportsLoopCount(tabIndex: Int): Boolean {
