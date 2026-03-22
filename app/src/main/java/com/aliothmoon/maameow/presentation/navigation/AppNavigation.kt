@@ -146,7 +146,7 @@ fun AppNavigation(
                         popEnterTransition = { tabEnterTransition },
                         popExitTransition = { tabExitTransition }
                     ) {
-                        BackHandler { navController.navigate(Routes.HOME) }
+                        BackHandler { navController.popBackStack() }
                         BackgroundTaskView(
                             onFullscreenChanged = { isFullscreen = it },
                             viewModel = backgroundTaskViewModel,
@@ -160,7 +160,7 @@ fun AppNavigation(
                         popEnterTransition = { tabEnterTransition },
                         popExitTransition = { tabExitTransition }
                     ) {
-                        BackHandler { navController.navigate(Routes.HOME) }
+                        BackHandler { navController.popBackStack() }
                         ScheduleListView(navController = navController)
                     }
 
