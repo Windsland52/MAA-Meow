@@ -1,10 +1,14 @@
 package com.aliothmoon.maameow.overlay.screensaver
 
+import android.app.Activity
 import android.content.Context
 import android.graphics.PixelFormat
 import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -22,6 +26,7 @@ class ScreenSaverOverlayManager(
 
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var composeView: ComposeView? = null
+    private var insetsController: WindowInsetsControllerCompat? = null
 
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
@@ -36,8 +41,16 @@ class ScreenSaverOverlayManager(
 
     fun isShowing(): Boolean = composeView != null
 
-    fun show() {
+    fun show(activity: Activity? = null) {
         if (isShowing()) return
+
+        activity?.window?.let { window ->
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            insetsController = controller
+        }
 
         composeView = ComposeView(context).apply {
             setViewTreeLifecycleOwner(this@ScreenSaverOverlayManager)
@@ -64,6 +77,10 @@ class ScreenSaverOverlayManager(
 
     fun hide() {
         if (!isShowing()) return
+
+        // 恢复系统栏
+        insetsController?.show(WindowInsetsCompat.Type.systemBars())
+        insetsController = null
 
         try {
             lifecycleRegistry.currentState = Lifecycle.State.STARTED

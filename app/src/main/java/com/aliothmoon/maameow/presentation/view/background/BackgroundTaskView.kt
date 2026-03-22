@@ -131,7 +131,7 @@ fun BackgroundTaskView(
     compositionService: MaaCompositionService = koinInject(),
     dispatcher: UnifiedStateDispatcher = koinInject(),
     permissionManager: PermissionManager = koinInject(),
-    screenSaverOverlayManager: ScreenSaverOverlayManager = koinInject(),
+    screenSaverManager: ScreenSaverOverlayManager = koinInject(),
     appWatchdog: AppWatchdog = koinInject(),
 ) {
 
@@ -552,7 +552,7 @@ fun BackgroundTaskView(
                 onMuteGameSound = viewModel::onMuteGameSound,
                 onUnmuteGameSound = viewModel::onUnmuteGameSound,
                 onScreenOff = viewModel::onScreenOff,
-                onShowScreenSaver = screenSaverOverlayManager::show,
+                onShowScreenSaver = { screenSaverManager.show(context as? Activity) },
                 onCloseApp = {
                     if (maaState == MaaExecutionState.RUNNING) {
                         showCloseConfirm = true
