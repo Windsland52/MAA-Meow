@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -54,8 +55,14 @@ sealed class BottomNavTab(
         icon = Icons.Default.DateRange
     )
 
+    data object NOTIFICATION : BottomNavTab(
+        route = Routes.NOTIFICATION,
+        label = "通知",
+        icon = Icons.Default.Notifications
+    )
+
     companion object {
-        val all = listOf(HOME, BACKGROUND, SCHEDULE)
+        val all = listOf(HOME, BACKGROUND, SCHEDULE, NOTIFICATION)
     }
 }
 

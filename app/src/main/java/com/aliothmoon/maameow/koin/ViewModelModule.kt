@@ -8,6 +8,7 @@ import com.aliothmoon.maameow.presentation.viewmodel.HomeViewModel
 import com.aliothmoon.maameow.presentation.viewmodel.LogHistoryViewModel
 import com.aliothmoon.maameow.presentation.viewmodel.MiniGameViewModel
 import com.aliothmoon.maameow.presentation.viewmodel.SettingsViewModel
+import com.aliothmoon.maameow.presentation.viewmodel.NotificationSettingsViewModel
 import com.aliothmoon.maameow.presentation.viewmodel.UpdateViewModel
 import com.aliothmoon.maameow.schedule.ui.ScheduleEditViewModel
 import com.aliothmoon.maameow.schedule.ui.ScheduleListViewModel
@@ -25,6 +26,7 @@ val viewModelModule = module {
     viewModelOf(::BackgroundTaskViewModel)
     viewModelOf(::ScheduleListViewModel)
     viewModelOf(::ScheduleEditViewModel)
+    viewModelOf(::NotificationSettingsViewModel)
 }
 
 

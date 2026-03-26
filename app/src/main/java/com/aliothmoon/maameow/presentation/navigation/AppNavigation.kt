@@ -31,6 +31,7 @@ import com.aliothmoon.maameow.domain.models.RunMode
 import com.aliothmoon.maameow.presentation.components.ResourceLoadingOverlay
 import com.aliothmoon.maameow.presentation.view.background.BackgroundTaskView
 import com.aliothmoon.maameow.presentation.view.home.HomeView
+import com.aliothmoon.maameow.presentation.view.notification.NotificationSettingsView
 import com.aliothmoon.maameow.presentation.view.settings.ErrorLogView
 import com.aliothmoon.maameow.presentation.view.settings.LogHistoryView
 import com.aliothmoon.maameow.presentation.view.settings.SettingsView
@@ -60,7 +61,7 @@ fun AppNavigation(
     val scheduledCountdownState by backgroundTaskViewModel.coordinator.countdownState.collectAsStateWithLifecycle()
 
     // 定义哪些页面属于主 Tab
-    val mainTabs = listOf(Routes.HOME, Routes.BACKGROUND_TASK, Routes.SCHEDULE)
+    val mainTabs = listOf(Routes.HOME, Routes.BACKGROUND_TASK, Routes.SCHEDULE, Routes.NOTIFICATION)
     
     // 判断是否处于主 Tab 页面
     val isOnMainTab = currentNavRoute in mainTabs || currentNavRoute == null
@@ -162,6 +163,17 @@ fun AppNavigation(
                     ) {
                         BackHandler { navController.popBackStack() }
                         ScheduleListView(navController = navController)
+                    }
+
+                    composable(
+                        route = Routes.NOTIFICATION,
+                        enterTransition = { tabEnterTransition },
+                        exitTransition = { tabExitTransition },
+                        popEnterTransition = { tabEnterTransition },
+                        popExitTransition = { tabExitTransition }
+                    ) {
+                        BackHandler { navController.popBackStack() }
+                        NotificationSettingsView()
                     }
 
                     composable(

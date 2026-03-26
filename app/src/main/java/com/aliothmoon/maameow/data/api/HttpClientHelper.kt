@@ -1,7 +1,7 @@
 package com.aliothmoon.maameow.data.api
 
 import com.aliothmoon.maameow.utils.JsonUtils
-import kotlinx.serialization.json.Json
+import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -79,6 +79,22 @@ class HttpClientHelper(
         return okHttpClient.newCall(request).await()
     }
 
+
+    suspend fun postForm(
+        url: String,
+        params: Map<String, String>,
+        headers: Map<String, String> = emptyMap()
+    ): Response {
+        val formBody = FormBody.Builder().apply {
+            params.forEach { (k, v) -> add(k, v) }
+        }.build()
+        val request = Request.Builder()
+            .url(url.toHttpUrl())
+            .apply { headers.forEach { (k, v) -> header(k, v) } }
+            .post(formBody)
+            .build()
+        return okHttpClient.newCall(request).await()
+    }
 
     fun rawClient(): OkHttpClient = okHttpClient
 

@@ -44,6 +44,8 @@ import com.aliothmoon.maameow.overlay.OverlayController
 import com.aliothmoon.maameow.overlay.OverlayViewModelOwner
 import com.aliothmoon.maameow.overlay.border.BorderOverlayManager
 import com.aliothmoon.maameow.overlay.screensaver.ScreenSaverOverlayManager
+import com.aliothmoon.maameow.data.notification.NotificationSettingsManager
+import com.aliothmoon.maameow.domain.service.ExternalNotificationService
 import com.aliothmoon.maameow.utils.CrashHandler
 import com.aliothmoon.maameow.utils.log.LogTreeHolder
 import okhttp3.OkHttpClient
@@ -91,6 +93,10 @@ val appModule = module {
     singleOf(::ResourceInitService)
     singleOf(::MaaResourceLoader)
     single { RuntimeLogCenter(get()) }
+
+    // 外部通知
+    singleOf(::NotificationSettingsManager)
+    singleOf(::ExternalNotificationService)
 
     // 回调处理链
     singleOf(::ConnectionInfoHandler)
