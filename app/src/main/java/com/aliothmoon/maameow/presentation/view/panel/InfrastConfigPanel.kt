@@ -330,13 +330,13 @@ private fun CustomInfrastSection(
 
     // 解析后的配置（用于计划下拉框）
     val (custom, setCustom) = remember { mutableStateOf<CustomInfrastConfig?>(null) }
-    val (parseError, setParseError) = remember { mutableStateOf<String?>(null) }
+    val (error, setError) = remember { mutableStateOf<String?>(null) }
 
     // 当文件路径变化时解析配置
     LaunchedEffect(config.customInfrastFile) {
         if (config.customInfrastFile.isBlank()) {
             setCustom(null)
-            setParseError(null)
+            setError(null)
             return@LaunchedEffect
         }
         withContext(Dispatchers.IO) {
@@ -346,19 +346,29 @@ private fun CustomInfrastSection(
                     val content = file.readText()
                     val parsed = JsonUtils.common.decodeFromString<CustomInfrastConfig>(content)
                     setCustom(parsed)
-                    setParseError(null)
-                    // 同步时间段数据到 config 用于 toTaskParams 的时间轮换
+                    setError(null)
+                    // 同步时间段数据 + 排班计划存在时自动选中第一个
                     val periods = parsed.plans.map { it.period }
-                    if (periods != config.customPlanPeriods) {
-                        onConfigChange(config.copy(customPlanPeriods = periods))
+                    val hasPeriodicPlan = parsed.plans.any { it.period.isNotEmpty() }
+                    val autoSelect = !hasPeriodicPlan
+                            && config.customInfrastPlanSelect == -1
+                            && parsed.plans.isNotEmpty()
+                    if (autoSelect || periods != config.customPlanPeriods) {
+                        val planIndex = if (autoSelect) 0 else config.customInfrastPlanSelect
+                        onConfigChange(
+                            config.copy(
+                                customPlanPeriods = periods,
+                                customInfrastPlanSelect = planIndex
+                            )
+                        )
                     }
                 } else {
                     setCustom(null)
-                    setParseError("文件不存在")
+                    setError("文件不存在")
                 }
             } catch (e: Exception) {
                 setCustom(null)
-                setParseError("解析失败: ${e.message}")
+                setError("解析失败: ${e.message}")
             }
         }
     }
@@ -410,14 +420,6 @@ private fun CustomInfrastSection(
                     }
                 }
             }
-
-            // 排班计划选择
-            PlanSelectButtonGroup(
-                plans = custom.plans,
-                selectedPlanIndex = config.customInfrastPlanSelect,
-                onPlanSelected = {
-                    onConfigChange(config.copy(customInfrastPlanSelect = it))
-                })
         }
 
         // 在线生成器链接
@@ -448,10 +450,20 @@ private fun CustomInfrastSection(
                 }
             })
 
+        // 排班计划选择
+        if (custom != null && custom.plans.isNotEmpty()) {
+            PlanSelectButtonGroup(
+                plans = custom.plans,
+                selectedPlanIndex = config.customInfrastPlanSelect,
+                onPlanSelected = {
+                    onConfigChange(config.copy(customInfrastPlanSelect = it))
+                })
+        }
+
         //  解析错误提示
-        if (parseError != null) {
+        if (error != null) {
             Text(
-                text = parseError,
+                text = error,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error
             )
@@ -742,7 +754,8 @@ private fun FacilitiesSection(
                 onClick = {
                     onConfigChange(
                         config.copy(
-                        facilities = config.facilities.map { it.first to true }))
+                            facilities = config.facilities.map { it.first to true })
+                    )
                 }, modifier = Modifier.weight(1f)
             ) {
                 Text("全选")
@@ -752,7 +765,8 @@ private fun FacilitiesSection(
                 onClick = {
                     onConfigChange(
                         config.copy(
-                        facilities = config.facilities.map { it.first to false }))
+                            facilities = config.facilities.map { it.first to false })
+                    )
                 }, modifier = Modifier.weight(1f)
             ) {
                 Text("清除")
@@ -790,16 +804,17 @@ private fun FacilityList(
             key(entry.first) {
                 ReorderableItem {
                     val (facility, enabled) = entry
-                    Row(modifier = Modifier
-                        .fillMaxWidth()
-                        .longPressDraggableHandle()
-                        .clickable {
-                            val newList = facilities.map {
-                                if (it.first == facility) it.first to !it.second else it
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .longPressDraggableHandle()
+                            .clickable {
+                                val newList = facilities.map {
+                                    if (it.first == facility) it.first to !it.second else it
+                                }
+                                onFacilitiesChange(newList)
                             }
-                            onFacilitiesChange(newList)
-                        }
-                        .padding(vertical = 4.dp),
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = enabled, onCheckedChange = { checked ->
@@ -998,9 +1013,9 @@ private fun ContinueTrainingSection(
 
 private fun queryFileName(context: Context, uri: Uri): String? {
     return context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (idx >= 0) cursor.getString(idx) else null
-            } else null
-        }
+        if (cursor.moveToFirst()) {
+            val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (idx >= 0) cursor.getString(idx) else null
+        } else null
+    }
 }
