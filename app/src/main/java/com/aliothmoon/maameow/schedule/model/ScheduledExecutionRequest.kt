@@ -11,6 +11,7 @@ data class ScheduledExecutionRequest(
     val strategyName: String,
     val profileId: String,
     val scheduledTimeMs: Long,
+    val forceStart: Boolean = false,
 ) {
     companion object {
         const val ACTION_SHOW_SCHEDULE_EXECUTION =
@@ -20,6 +21,7 @@ data class ScheduledExecutionRequest(
         const val EXTRA_STRATEGY_NAME = "extra_strategy_name"
         const val EXTRA_PROFILE_ID = "extra_profile_id"
         const val EXTRA_SCHEDULED_TIME = "extra_scheduled_time"
+        const val EXTRA_FORCE_START = "extra_force_start"
         const val COUNTDOWN_SECONDS = 30
 
         fun fromIntent(intent: Intent?): ScheduledExecutionRequest? {
@@ -40,6 +42,7 @@ data class ScheduledExecutionRequest(
                 strategyName = strategyName,
                 profileId = profileId,
                 scheduledTimeMs = scheduledTimeMs,
+                forceStart = intent.getBooleanExtra(EXTRA_FORCE_START, false),
             )
         }
     }
@@ -55,6 +58,7 @@ data class ScheduledExecutionRequest(
             putExtra(EXTRA_STRATEGY_NAME, strategyName)
             putExtra(EXTRA_PROFILE_ID, profileId)
             putExtra(EXTRA_SCHEDULED_TIME, scheduledTimeMs)
+            putExtra(EXTRA_FORCE_START, forceStart)
         }
     }
 }

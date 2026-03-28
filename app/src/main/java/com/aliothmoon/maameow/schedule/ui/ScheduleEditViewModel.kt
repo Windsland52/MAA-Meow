@@ -30,6 +30,7 @@ data class ScheduleEditUiState(
     val executionTimes: List<LocalTime> = emptyList(),
     val profiles: List<TaskProfile> = emptyList(),
     val selectedProfileId: String? = null,
+    val forceStart: Boolean = false,
     val isSaving: Boolean = false,
     val saveSuccess: Boolean = false,
     val needBatteryOptimization: Boolean = false,
@@ -71,7 +72,8 @@ class ScheduleEditViewModel(
                         daysOfWeek = strategy.daysOfWeek,
                         executionTimes = strategy.executionTimes,
                         profiles = profiles,
-                        selectedProfileId = strategy.profileId
+                        selectedProfileId = strategy.profileId,
+                        forceStart = strategy.forceStart,
                     )
                     return@launch
                 }
@@ -129,6 +131,10 @@ class ScheduleEditViewModel(
         }
     }
 
+    fun onForceStartChanged(value: Boolean) {
+        _state.update { it.copy(forceStart = value) }
+    }
+
     fun onReplaceTime(old: LocalTime, new: LocalTime) {
         _state.update { state ->
             val updated = state.executionTimes.map { if (it == old) new else it }.distinct().sorted()
@@ -164,6 +170,7 @@ class ScheduleEditViewModel(
                     daysOfWeek = current.daysOfWeek,
                     executionTimes = current.executionTimes,
                     profileId = current.selectedProfileId,
+                    forceStart = current.forceStart,
                 ) ?: ScheduleStrategy(
                     id = strategyId ?: UUID.randomUUID().toString(),
                     name = current.name.trim(),
@@ -171,6 +178,7 @@ class ScheduleEditViewModel(
                     daysOfWeek = current.daysOfWeek,
                     executionTimes = current.executionTimes,
                     profileId = current.selectedProfileId,
+                    forceStart = current.forceStart,
                 )
 
                 if (current.isNew) {

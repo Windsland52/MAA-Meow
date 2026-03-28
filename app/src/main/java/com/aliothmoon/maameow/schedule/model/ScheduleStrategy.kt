@@ -52,6 +52,8 @@ data class ScheduleStrategy(
     val executionTimes: List<@Serializable(with = LocalTimeSerializer::class) LocalTime>,
     /** 关联的任务配置 Profile ID */
     val profileId: String,
+    /** 触发时若有任务运行，强制停止后再启动 */
+    val forceStart: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val lastExecutedAt: Long? = null,
     val lastResult: ExecutionResult? = null,

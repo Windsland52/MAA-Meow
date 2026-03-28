@@ -28,6 +28,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,12 +45,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import android.content.Intent
 import android.os.Build
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.aliothmoon.maameow.presentation.components.TopAppBar
+import com.aliothmoon.maameow.presentation.components.tip.ExpandableTipContent
+import com.aliothmoon.maameow.presentation.components.tip.ExpandableTipIcon
 import org.koin.androidx.compose.koinViewModel
 import java.time.DayOfWeek
 import java.time.LocalTime
@@ -270,6 +274,38 @@ fun ScheduleEditView(
                             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
                         )
                     }
+                }
+            }
+
+            item {
+                SectionHeader("高级选项")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val (expanded, setExpanded) = remember { mutableStateOf(false) }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("强制启动", style = MaterialTheme.typography.bodyLarge)
+                            ExpandableTipIcon(
+                                modifier = Modifier.padding(start = 8.dp),
+                                expanded = expanded,
+                                onExpandedChange = { setExpanded(it) })
+                        }
+                        ExpandableTipContent(
+                            visible = expanded,
+                            tipText = "强制启动任务，会中断的正在运行的游戏和任务"
+                        )
+                    }
+                    Switch(
+                        checked = state.forceStart,
+                        onCheckedChange = { viewModel.onForceStartChanged(it) }
+                    )
                 }
             }
         }

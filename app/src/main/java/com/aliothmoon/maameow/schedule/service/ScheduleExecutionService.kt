@@ -98,6 +98,7 @@ class ScheduleExecutionService : Service() {
             strategyName = strategy.name,
             profileId = strategy.profileId,
             scheduledTimeMs = scheduledTimeMs,
+            forceStart = strategy.forceStart,
         )
 
         triggerLogger.append("检查锁屏状态...")

@@ -102,15 +102,26 @@ class ScheduledLaunchCoordinator(
         triggerLogger.append("收到启动请求: ${request.strategyName}")
 
         if (hasPendingFlow()) {
-            reject(request, ExecutionResult.SKIPPED_BUSY, "已有定时任务正在处理中")
-            return
+            if (request.forceStart) {
+                triggerLogger.append("强制启动: 清除当前待处理流程")
+                clearFlow()
+            } else {
+                reject(request, ExecutionResult.SKIPPED_BUSY, "已有定时任务正在处理中")
+                return
+            }
         }
 
         if (compositionService.state.value == MaaExecutionState.RUNNING
             || compositionService.state.value == MaaExecutionState.STARTING
         ) {
-            reject(request, ExecutionResult.SKIPPED_BUSY, "有任务正在运行")
-            return
+            if (request.forceStart) {
+                triggerLogger.append("强制启动: 停止当前运行任务")
+                compositionService.stop()
+                compositionService.stopVirtualDisplay()
+            } else {
+                reject(request, ExecutionResult.SKIPPED_BUSY, "有任务正在运行")
+                return
+            }
         }
 
         if (appSettingsManager.runMode.value != RunMode.BACKGROUND) {
