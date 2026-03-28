@@ -110,6 +110,8 @@ class MaaSessionLogger(private val pathConfig: MaaPathConfig) {
     suspend fun startSession(taskNames: List<String>): Boolean = withContext(dispatcher) {
         try {
             sessionRef.getAndSet(null)?.close()
+            pendingLogs.clear()
+            _logs.value = emptyList()
             val startTime = System.currentTimeMillis()
             val fileName = "${LOG_PREFIX}${
                 Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault())

@@ -3,7 +3,7 @@ package com.aliothmoon.maameow.constant
 
 object LogConfig {
     /** 内存中最大运行时日志条数 */
-    const val MAX_RUNTIME_LOG_COUNT = 500
+    const val MAX_RUNTIME_LOG_COUNT = 750
 
     /** 任务日志保留天数 */
     const val MAX_TASK_LOG_DAYS = 30
