@@ -38,7 +38,9 @@ import androidx.compose.runtime.Composable
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import com.aliothmoon.maameow.presentation.LocalFloatingWindowContext
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -303,30 +305,33 @@ private fun CustomInfrastSection(
     val pathConfig: MaaPathConfig = koinInject()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val isInFloatingWindow = LocalFloatingWindowContext.current
 
-    // SAF 文件选择器
-    val filePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri ?: return@rememberLauncherForActivityResult
-        scope.launch {
-            withContext(Dispatchers.IO) {
-                val destDir = File(pathConfig.rootDir, "custom_infrast").apply { mkdirs() }
-                val fileName = queryFileName(context, uri) ?: "user_infrast.json"
-                val destFile = File(destDir, fileName)
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    destFile.outputStream().use { output -> input.copyTo(output) }
-                }
-                onConfigChange(
-                    config.copy(
-                        defaultInfrast = UiUsageConstants.USER_DEFINED_INFRAST,
-                        customInfrastFile = destFile.absolutePath,
-                        customInfrastPlanSelect = -1
+    // SAF 文件选择器（悬浮窗环境下不可用）
+    val filePicker = if (!isInFloatingWindow) {
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.OpenDocument()
+        ) { uri: Uri? ->
+            uri ?: return@rememberLauncherForActivityResult
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    val destDir = File(pathConfig.rootDir, "custom_infrast").apply { mkdirs() }
+                    val fileName = queryFileName(context, uri) ?: "user_infrast.json"
+                    val destFile = File(destDir, fileName)
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        destFile.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    onConfigChange(
+                        config.copy(
+                            defaultInfrast = UiUsageConstants.USER_DEFINED_INFRAST,
+                            customInfrastFile = destFile.absolutePath,
+                            customInfrastPlanSelect = -1
+                        )
                     )
-                )
+                }
             }
         }
-    }
+    } else null
 
     // 解析后的配置（用于计划下拉框）
     val (custom, setCustom) = remember { mutableStateOf<CustomInfrastConfig?>(null) }
@@ -435,7 +440,11 @@ private fun CustomInfrastSection(
         PresetButtonGroup(
             selectedPreset = config.defaultInfrast, onPresetSelected = { preset ->
                 if (preset == UiUsageConstants.USER_DEFINED_INFRAST) {
-                    filePicker.launch(arrayOf("application/json"))
+                    if (filePicker != null) {
+                        filePicker.launch(arrayOf("application/json"))
+                    } else {
+                        Toast.makeText(context, "请在后台模式下导入自定义配置文件", Toast.LENGTH_SHORT).show()
+                    }
                 } else {
                     val filePath = File(
                         pathConfig.resourceDir, "custom_infrast/$preset"
