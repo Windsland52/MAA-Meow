@@ -65,6 +65,7 @@ import com.aliothmoon.maameow.utils.CrashHandler
 import com.aliothmoon.maameow.utils.log.LogTreeHolder
 import okhttp3.OkHttpClient
 import org.koin.core.module.dsl.singleOf
+import org.koin.dsl.bind
 import org.koin.dsl.module
 import java.util.concurrent.TimeUnit
 
@@ -113,16 +114,16 @@ val appModule = module {
 
     // 外部通知
     singleOf(::NotificationSettingsManager)
-    single<NotificationProvider> { ServerChanProvider(get(), get()) }
-    single<NotificationProvider> { TelegramProvider(get(), get()) }
-    single<NotificationProvider> { DiscordProvider(get(), get()) }
-    single<NotificationProvider> { DingTalkProvider(get(), get()) }
-    single<NotificationProvider> { DiscordWebhookProvider(get(), get()) }
-    single<NotificationProvider> { SmtpProvider(get()) }
-    single<NotificationProvider> { BarkProvider(get(), get()) }
-    single<NotificationProvider> { QmsgProvider(get(), get()) }
-    single<NotificationProvider> { GotifyProvider(get(), get()) }
-    single<NotificationProvider> { CustomWebhookProvider(get(), get()) }
+    single { ServerChanProvider(get(), get()) } bind NotificationProvider::class
+    single { TelegramProvider(get(), get()) } bind NotificationProvider::class
+    single { DiscordProvider(get(), get()) } bind NotificationProvider::class
+    single { DingTalkProvider(get(), get()) } bind NotificationProvider::class
+    single { DiscordWebhookProvider(get(), get()) } bind NotificationProvider::class
+    single { SmtpProvider(get()) } bind NotificationProvider::class
+    single { BarkProvider(get(), get()) } bind NotificationProvider::class
+    single { QmsgProvider(get(), get()) } bind NotificationProvider::class
+    single { GotifyProvider(get(), get()) } bind NotificationProvider::class
+    single { CustomWebhookProvider(get(), get()) } bind NotificationProvider::class
     single { ExternalNotificationService(get(), get(), getAll()) }
 
     // 内部通知
