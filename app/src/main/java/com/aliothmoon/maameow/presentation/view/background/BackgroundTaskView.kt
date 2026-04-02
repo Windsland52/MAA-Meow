@@ -547,10 +547,11 @@ fun BackgroundTaskView(
         }
 
         if (showMoreActions) {
+            val isGameMuted by viewModel.isGameMuted.collectAsStateWithLifecycle()
             BackgroundMoreActionsOverlay(
                 onDismissRequest = { showMoreActions = false },
-                onMuteGameSound = viewModel::onMuteGameSound,
-                onUnmuteGameSound = viewModel::onUnmuteGameSound,
+                isGameMuted = isGameMuted,
+                onToggleGameSound = viewModel::onToggleGameSound,
                 onScreenOff = viewModel::onScreenOff,
                 onShowScreenSaver = { screenSaverManager.show(context as? Activity) },
                 onCloseApp = {
@@ -721,8 +722,8 @@ private inline fun viewToVirtualDisplay(
 @Composable
 private fun BackgroundMoreActionsOverlay(
     onDismissRequest: () -> Unit,
-    onMuteGameSound: () -> Unit,
-    onUnmuteGameSound: () -> Unit,
+    isGameMuted: Boolean,
+    onToggleGameSound: () -> Unit,
     onScreenOff: () -> Unit,
     onShowScreenSaver: () -> Unit,
     onCloseApp: () -> Unit,
@@ -806,20 +807,12 @@ private fun BackgroundMoreActionsOverlay(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         ActionTile(
-                            icon = Icons.AutoMirrored.Filled.VolumeOff,
-                            label = "关闭游戏声音",
-                            onClick = onMuteGameSound,
+                            icon = if (isGameMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                            label = if (isGameMuted) "游戏已静音" else "关闭游戏声音",
+                            onClick = onToggleGameSound,
                             modifier = Modifier.weight(1f),
-                            containerColor = MaterialTheme.colorScheme.secondary,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        )
-                        ActionTile(
-                            icon = Icons.AutoMirrored.Filled.VolumeUp,
-                            label = "打开游戏声音",
-                            onClick = onUnmuteGameSound,
-                            modifier = Modifier.weight(1f),
-                            containerColor = MaterialTheme.colorScheme.secondary,
-                            contentColor = MaterialTheme.colorScheme.onSurface
+                            containerColor = if (isGameMuted) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary,
+                            contentColor = if (isGameMuted) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
                         )
                     }
 

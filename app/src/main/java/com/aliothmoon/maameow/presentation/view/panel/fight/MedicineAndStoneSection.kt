@@ -1,19 +1,16 @@
 package com.aliothmoon.maameow.presentation.view.panel.fight
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.aliothmoon.maameow.data.model.FightConfig
 import com.aliothmoon.maameow.presentation.components.CheckBoxWithLabel
@@ -29,92 +26,72 @@ fun MedicineAndStoneSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // 使用理智药
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CheckBoxWithLabel(
-                checked = config.useMedicine,
-                onCheckedChange = {
-                    onConfigChange(
-                        config.copy(
-                            useMedicine = it,
-                            // 关闭理智药时，同时关闭源石
-                            useStone = if (!it) false else config.useStone
-                        )
+        CheckBoxWithLabel(
+            checked = config.useMedicine,
+            onCheckedChange = {
+                onConfigChange(
+                    config.copy(
+                        useMedicine = it,
+                        useStone = if (!it) false else config.useStone
                     )
-                },
-                label = "使用理智药",
-                enabled = !config.useStone,  // 使用源石时禁用理智药
-                modifier = Modifier.weight(1f)
-            )
+                )
+            },
+            label = "使用理智药",
+            enabled = !config.useStone,
+        )
+        AnimatedVisibility(visible = config.useMedicine) {
             INumericField(
                 value = config.medicineNumber,
                 onValueChange = { onConfigChange(config.copy(medicineNumber = it)) },
+                label = "最多使用 N 个理智药",
                 minimum = 0,
                 maximum = 999,
-                enabled = config.useMedicine && !config.useStone,
-                modifier = Modifier.width(80.dp)
+                enabled = !config.useStone,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
             )
         }
 
         // 使用源石 TODO 暂时不支持使用
-//        Row(
-//            modifier = Modifier.fillMaxWidth(),
-//            horizontalArrangement = Arrangement.SpaceBetween,
-//            verticalAlignment = Alignment.CenterVertically
-//        ) {
-//            UseStoneSection(config, onConfigChange, modifier = Modifier.weight(1f))
-//            INumericField(
-//                value = config.stoneNumber,
-//                onValueChange = { onConfigChange(config.copy(stoneNumber = it)) },
-//                minimum = 0,
-//                maximum = 999,
-//                enabled = config.useStone,
-//                modifier = Modifier.width(80.dp)
-//            )
-//        }
+//        UseStoneSection(config, onConfigChange)
 
         // 战斗次数限制
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CheckBoxWithLabel(
-                checked = config.hasTimesLimited,
-                onCheckedChange = { onConfigChange(config.copy(hasTimesLimited = it)) },
-                label = "指定次数",
-                modifier = Modifier.weight(1f)
-            )
-            INumericField(
-                value = config.maxTimes,
-                onValueChange = { onConfigChange(config.copy(maxTimes = it)) },
-                minimum = 0,
-                maximum = 999,
-                enabled = config.hasTimesLimited,
-                modifier = Modifier.width(80.dp)
-            )
-        }
-
-        // 代理倍率整除警告
-        val showSeriesWarning = config.hasTimesLimited &&
-                config.series > 0 &&
-                config.maxTimes % config.series != 0
-
-        if (showSeriesWarning) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.tertiaryContainer,
-                shape = RoundedCornerShape(4.dp)
-            ) {
-                Text(
-                    text = "战斗次数 ${config.maxTimes} 无法被代理倍率 ${config.series} 整除，可能无法完全消耗理智",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    modifier = Modifier.padding(8.dp)
+        CheckBoxWithLabel(
+            checked = config.hasTimesLimited,
+            onCheckedChange = { onConfigChange(config.copy(hasTimesLimited = it)) },
+            label = "指定次数",
+        )
+        AnimatedVisibility(visible = config.hasTimesLimited) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                INumericField(
+                    value = config.maxTimes,
+                    onValueChange = { onConfigChange(config.copy(maxTimes = it)) },
+                    label = "战斗 N 次后停止",
+                    minimum = 0,
+                    maximum = 999,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
                 )
+
+                // 代理倍率整除警告
+                val showSeriesWarning = config.series > 0 &&
+                        config.maxTimes % config.series != 0
+                if (showSeriesWarning) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "战斗次数 ${config.maxTimes} 无法被代理倍率 ${config.series} 整除，可能无法完全消耗理智",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
+                }
             }
         }
     }

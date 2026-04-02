@@ -136,10 +136,18 @@ fun ITextFieldWithFocus(
     placeholder: String = "",
     singleLine: Boolean = true,
     enabled: Boolean = true,
-    supportingText: @Composable (() -> Unit)? = null
+    supportingText: @Composable (() -> Unit)? = null,
+    inputFilter: ((String) -> Boolean)? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    inputType: Int? = null,
 ) {
     val isInFloatingWindow = LocalFloatingWindowContext.current
-    val (bufferedValue, bufferedOnChange) = rememberBufferedTextState(value, onValueChange)
+    val filteredOnChange: (String) -> Unit = if (inputFilter != null) {
+        { text -> if (inputFilter(text)) onValueChange(text) }
+    } else {
+        onValueChange
+    }
+    val (bufferedValue, bufferedOnChange) = rememberBufferedTextState(value, filteredOnChange)
 
     if (isInFloatingWindow) {
         // 悬浮窗环境：使用 FloatWindowEditText
@@ -151,8 +159,9 @@ fun ITextFieldWithFocus(
             hint = placeholder,
             singleLine = singleLine,
             enabled = enabled,
-            inputType = if (singleLine) InputType.TYPE_CLASS_TEXT else
-                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE,
+            inputType = inputType
+                ?: if (singleLine) InputType.TYPE_CLASS_TEXT
+                else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE,
             onFocusChange = { hasFocus ->
                 if (!hasFocus) {
                     onFocusLost()
@@ -175,7 +184,8 @@ fun ITextFieldWithFocus(
             placeholder = { Text(placeholder) },
             singleLine = singleLine,
             enabled = enabled,
-            supportingText = supportingText
+            supportingText = supportingText,
+            keyboardOptions = keyboardOptions,
         )
     }
 }

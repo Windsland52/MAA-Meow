@@ -63,6 +63,8 @@ class BackgroundTaskViewModel(
 
     private val surfaceRef = AtomicReference<Surface>()
 
+    private val _isGameMuted = MutableStateFlow(false)
+    val isGameMuted: StateFlow<Boolean> = _isGameMuted.asStateFlow()
 
     private val touchPreviewController = TouchPreviewController(viewModelScope)
     val markers: StateFlow<List<PreviewTouchMarker>> = touchPreviewController.markers
@@ -459,8 +461,12 @@ class BackgroundTaskViewModel(
         sessionLogger.clearRuntimeLogs()
     }
 
-    fun onMuteGameSound() {
-        onMuteGameSound(chainState.getClientTypeOrNull())
+    fun onToggleGameSound() {
+        if (_isGameMuted.value) {
+            onUnmuteGameSound(chainState.getClientTypeOrNull())
+        } else {
+            onMuteGameSound(chainState.getClientTypeOrNull())
+        }
     }
 
     private fun onMuteGameSound(clientType: String?) {
@@ -468,11 +474,8 @@ class BackgroundTaskViewModel(
             val pkg = Packages[it] ?: return
             RemoteServiceManager.getInstanceOrNull()
                 ?.setPlayAudioOpAllowed(pkg, false)
+            _isGameMuted.value = true
         }
-    }
-
-    fun onUnmuteGameSound() {
-        onUnmuteGameSound(chainState.getClientTypeOrNull())
     }
 
     private fun onUnmuteGameSound(clientType: String?) {
@@ -480,6 +483,7 @@ class BackgroundTaskViewModel(
             val pkg = Packages[it] ?: return
             RemoteServiceManager.getInstanceOrNull()
                 ?.setPlayAudioOpAllowed(pkg, true)
+            _isGameMuted.value = false
         }
     }
 
