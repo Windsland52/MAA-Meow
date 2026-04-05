@@ -7,7 +7,7 @@ import com.aliothmoon.maameow.MaaCoreService
 import com.aliothmoon.maameow.RemoteService
 import com.aliothmoon.maameow.constant.DefaultDisplayConfig
 import com.aliothmoon.maameow.data.model.LogLevel
-import com.aliothmoon.maameow.data.notification.NotificationSettingsManager
+
 import com.aliothmoon.maameow.data.preferences.AppSettingsManager
 import com.aliothmoon.maameow.data.preferences.TaskChainState
 import com.aliothmoon.maameow.data.resource.ActivityManager
@@ -50,8 +50,7 @@ class MaaCompositionService(
     private val taskChainState: TaskChainState,
     private val subTaskHandler: SubTaskHandler,
     private val taskChainStatusTracker: TaskChainStatusTracker,
-    private val notificationService: ExternalNotificationService,
-    private val notificationSettings: NotificationSettingsManager,
+    private val notificationCenter: MaaNotificationCenter,
 ) : MaaExecutionStateHolder {
 
     private val _state = MutableStateFlow(MaaExecutionState.IDLE)
@@ -139,9 +138,7 @@ class MaaCompositionService(
                     "MAA服务异常终止",
                     LogLevel.ERROR
                 )
-                if (notificationSettings.sendOnServiceDied.value) {
-                    notificationService.send("服务异常", "MAA 服务意外终止")
-                }
+                notificationCenter.notifyServiceDied()
             }
         }
 

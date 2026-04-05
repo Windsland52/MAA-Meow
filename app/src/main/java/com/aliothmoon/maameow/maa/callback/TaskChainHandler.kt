@@ -3,10 +3,13 @@ package com.aliothmoon.maameow.maa.callback
 import android.content.Context
 import com.alibaba.fastjson2.JSONObject
 import com.aliothmoon.maameow.data.model.LogLevel
-import com.aliothmoon.maameow.domain.service.MaaEventNotifier
+import com.aliothmoon.maameow.domain.service.MaaNotificationCenter
 import com.aliothmoon.maameow.domain.service.MaaSessionLogger
 import com.aliothmoon.maameow.maa.AsstMsg
 import timber.log.Timber
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * 处理 TaskChain 级别回调（msg 10000-10004 + AllTasksCompleted=3）
@@ -16,16 +19,14 @@ class TaskChainHandler(
     private val sessionLogger: MaaSessionLogger,
     private val copilotRuntimeStateStore: CopilotRuntimeStateStore,
     private val statusTracker: TaskChainStatusTracker,
-    private val eventNotifier: MaaEventNotifier,
+    private val notificationCenter: MaaNotificationCenter,
+    private val subTaskHandler: SubTaskHandler,
 ) {
     private val resources = applicationContext.resources
     private val packageName = applicationContext.packageName
 
     /**
      * 处理 TaskChain 回调消息
-     *
-     * @param msg 回调消息类型
-     * @param details 回调详情 JSON
      */
     fun handle(msg: AsstMsg, details: JSONObject) {
         val taskId = details.getIntValue("taskid", 0)
@@ -68,7 +69,7 @@ class TaskChainHandler(
         val taskchain = details.getString("taskchain") ?: "Unknown"
         val taskName = str(taskchain)
         sessionLogger.append("${str("TaskError")}$taskName", LogLevel.ERROR)
-        eventNotifier.notifyTaskError(taskName)
+        notificationCenter.notifyTaskError(taskName)
     }
 
     /**
@@ -123,10 +124,59 @@ class TaskChainHandler(
 
     /**
      * AllTasksCompleted (3): 所有任务完成
+     * 附带任务总耗时和理智恢复时间信息
      */
     private fun handleAllTasksCompleted() {
-        sessionLogger.append(str("AllTasksComplete", ""), LogLevel.SUCCESS)
-        eventNotifier.notifyAllTasksCompleted(str("AllTasksComplete", ""))
+        val sb = StringBuilder(str("AllTasksComplete", ""))
+
+        // 任务总耗时
+        val startMillis = sessionLogger.sessionStartTimeMillis
+        if (startMillis > 0) {
+            val elapsed = System.currentTimeMillis() - startMillis
+            val h = elapsed / 3_600_000
+            val m = (elapsed % 3_600_000) / 60_000
+            val s = (elapsed % 60_000) / 1_000
+            val timeStr = buildString {
+                if (h > 0) append("${h}h ")
+                if (h > 0 || m > 0) append("${m}m ")
+                append("${s}s")
+            }
+            sb.append(" ($timeStr)")
+        }
+
+        // 理智恢复时间
+        val snapshot = subTaskHandler.lastSanitySnapshot
+        if (snapshot != null) {
+            sb.append("\n")
+            sb.append(str("CurrentSanity", snapshot.current, snapshot.max))
+
+            if (snapshot.current < snapshot.max) {
+                val recoveryMinutes = (snapshot.max - snapshot.current) * 6L
+                val recoveryMillis = snapshot.reportTimeMillis + recoveryMinutes * 60_000
+                val recoveryTime = Instant.ofEpochMilli(recoveryMillis)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDateTime()
+                val remainMinutes = ((recoveryMillis - System.currentTimeMillis()) / 60_000)
+                    .coerceAtLeast(0)
+                val rh = remainMinutes / 60
+                val rm = remainMinutes % 60
+                val remainStr = buildString {
+                    if (rh > 0) append("${rh}h ")
+                    append("${rm}m")
+                }
+
+                sb.append("\n")
+                sb.append(str("SanityRecovery",
+                    recoveryTime.format(DateTimeFormatter.ofPattern("HH:mm")),
+                    remainStr
+                ))
+                // TODO: 延迟定时提醒（理智恢复前 6 分钟推送通知）
+            }
+        }
+
+        val message = sb.toString()
+        sessionLogger.append(message, LogLevel.SUCCESS)
+        notificationCenter.notifyAllTasksCompleted(message)
     }
 
     /**

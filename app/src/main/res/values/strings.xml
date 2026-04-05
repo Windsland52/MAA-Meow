@@ -177,5 +177,6 @@
     <string name="maa_stone_used_times">石: %1$s  </string>
     <string name="maa_mission_start_fight_task">开始行动 %1$s 次, -%2$s理智</string>
     <string name="maa_screencap_cost">截图耗时 min/avg/max(ms): %1$s / %2$s / %3$s (%4$s)</string>
+    <string name="maa_sanity_recovery">预计恢复: %1$s (还剩 %2$s)</string>
 
 </resources>

@@ -29,6 +29,7 @@ import com.aliothmoon.maameow.domain.service.LogExportService
 import com.aliothmoon.maameow.domain.service.AppAliveChecker
 import com.aliothmoon.maameow.domain.service.MaaCompositionService
 import com.aliothmoon.maameow.domain.service.MaaEventNotifier
+import com.aliothmoon.maameow.domain.service.MaaNotificationCenter
 import com.aliothmoon.maameow.domain.service.MaaResourceLoader
 import com.aliothmoon.maameow.domain.service.AppWatchdog
 import com.aliothmoon.maameow.domain.service.RemoteAppAliveChecker
@@ -128,8 +129,9 @@ val appModule = module {
     single { CustomWebhookProvider(get(), get()) } bind NotificationProvider::class
     single { ExternalNotificationService(get(), get(), getAll()) }
 
-    // 内部通知
+    // 通知
     singleOf(::MaaEventNotifier)
+    singleOf(::MaaNotificationCenter)
 
     // 回调处理链
     singleOf(::ConnectionInfoHandler)

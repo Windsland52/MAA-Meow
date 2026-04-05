@@ -25,6 +25,7 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 class MaaSessionLogger(private val pathConfig: MaaPathConfig) {
@@ -100,6 +101,10 @@ class MaaSessionLogger(private val pathConfig: MaaPathConfig) {
     private val json = JsonUtils.common
     private val sessionRef = AtomicReference<ActiveSession?>(null)
 
+    /** 当前会话开始时间戳（毫秒），无活跃会话时为 -1 */
+    private val _sessionStartTimeMillis = AtomicLong(-1L)
+    val sessionStartTimeMillis: Long get() = _sessionStartTimeMillis.get()
+
     private val logDir: File
         get() = File(pathConfig.debugDir, "gui").apply {
             if (!exists()) mkdirs()
@@ -113,6 +118,7 @@ class MaaSessionLogger(private val pathConfig: MaaPathConfig) {
             pendingLogs.clear()
             _logs.value = emptyList()
             val startTime = System.currentTimeMillis()
+            _sessionStartTimeMillis.set(startTime)
             val fileName = "${LOG_PREFIX}${
                 Instant.ofEpochMilli(startTime).atZone(ZoneId.systemDefault())
                     .format(FILE_DATE_FORMAT)
@@ -314,6 +320,7 @@ class MaaSessionLogger(private val pathConfig: MaaPathConfig) {
     private suspend fun endSessionLocked(status: String) {
         val s = sessionRef.getAndSet(null) ?: return
         s.close(status)
+        _sessionStartTimeMillis.set(-1L)
         Timber.i("$TAG: Session ended with status: $status")
     }
 

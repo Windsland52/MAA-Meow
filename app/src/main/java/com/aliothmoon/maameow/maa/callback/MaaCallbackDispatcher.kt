@@ -5,8 +5,6 @@ import com.alibaba.fastjson2.JSONObject
 import com.aliothmoon.maameow.data.model.LogLevel
 import com.aliothmoon.maameow.domain.service.MaaSessionLogger
 import com.aliothmoon.maameow.domain.state.MaaExecutionState
-import com.aliothmoon.maameow.data.notification.NotificationSettingsManager
-import com.aliothmoon.maameow.domain.service.ExternalNotificationService
 import com.aliothmoon.maameow.maa.AsstMsg
 import timber.log.Timber
 
@@ -16,8 +14,6 @@ class MaaCallbackDispatcher(
     private val connectionInfoHandler: ConnectionInfoHandler,
     private val taskChainHandler: TaskChainHandler,
     private val subTaskHandler: SubTaskHandler,
-    private val notificationService: ExternalNotificationService,
-    private val notificationSettings: NotificationSettingsManager,
 ) {
 
     fun dispatch(msg: Int, json: String?) {
@@ -89,19 +85,12 @@ class MaaCallbackDispatcher(
         stateHolder.reportRunState(MaaExecutionState.IDLE)
         details?.let { taskChainHandler.handle(AsstMsg.AllTasksCompleted, it) }
         sessionLogger.endSession("COMPLETED")
-        if (notificationSettings.sendOnComplete.value) {
-            notificationService.sendWithLogs("所有任务已完成", "全部任务执行结束")
-        }
     }
 
     private fun handleTaskChainError(details: JSONObject?) {
         // 单条任务链出错不终止全局状态和日志会话
         // MaaCore 会继续执行后续任务链，最终由 AllTasksCompleted 或 TaskChainStopped 收尾
         details?.let { taskChainHandler.handle(AsstMsg.TaskChainError, it) }
-        if (notificationSettings.sendOnError.value) {
-            val taskchain = details?.getString("taskchain") ?: "Unknown"
-            notificationService.send("任务出错", "任务链 $taskchain 执行失败")
-        }
     }
 
     private fun handleTaskChainCompleted(details: JSONObject?) {

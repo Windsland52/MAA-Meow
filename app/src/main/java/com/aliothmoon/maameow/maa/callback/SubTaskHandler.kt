@@ -5,7 +5,7 @@ import com.alibaba.fastjson2.JSONObject
 import com.aliothmoon.maameow.data.model.LogItem
 import com.aliothmoon.maameow.data.model.LogLevel
 import com.aliothmoon.maameow.data.resource.ResourceDataManager
-import com.aliothmoon.maameow.domain.service.MaaEventNotifier
+import com.aliothmoon.maameow.domain.service.MaaNotificationCenter
 import com.aliothmoon.maameow.domain.service.MaaSessionLogger
 import com.aliothmoon.maameow.maa.AsstMsg
 import androidx.compose.ui.text.AnnotatedString
@@ -26,7 +26,7 @@ class SubTaskHandler(
     private val copilotRuntimeStateStore: CopilotRuntimeStateStore,
     private val resourceDataManager: ResourceDataManager,
     private val toolboxResultCollector: ToolboxResultCollector,
-    private val eventNotifier: MaaEventNotifier,
+    private val notificationCenter: MaaNotificationCenter,
 ) {
     private val resources = applicationContext.resources
     private val packageName = applicationContext.packageName
@@ -45,10 +45,22 @@ class SubTaskHandler(
     // 本次会话累计用药数（跨战斗累计，session 开始时重置）
     private var medicineUsedTotal = 0
 
+    // 会话级理智快照（最近一次 SanityBeforeStage），供 AllTasksCompleted 消费
+    data class SanitySnapshot(
+        val current: Int,
+        val max: Int,
+        val reportTimeMillis: Long = System.currentTimeMillis(),
+    )
+
+    /** 最近一次 SanityBeforeStage 的快照，跨战斗保留，session 结束时清空 */
+    var lastSanitySnapshot: SanitySnapshot? = null
+        private set
+
     /** 每次新 session 开始时调用，重置跨任务状态 */
     fun resetSessionState() {
         pendingFight = PendingFightState()
         medicineUsedTotal = 0
+        lastSanitySnapshot = null
     }
 
     /**
@@ -190,7 +202,7 @@ class SubTaskHandler(
             "FightMissionFailedAndStop" -> {
                 val message = str("FightMissionFailedAndStop")
                 append(message, LogLevel.ERROR)
-                eventNotifier.notifySubTaskFailure(message)
+                notificationCenter.notifySubTaskFailure(message)
             }
 
             "RecruitRefreshConfirm" -> {
@@ -349,10 +361,12 @@ class SubTaskHandler(
             }
 
             "SanityBeforeStage" -> {
-                pendingFight = pendingFight.copy(
-                    sanity = subDetails?.getIntValue("current_sanity"),
-                    sanityMax = subDetails?.getIntValue("max_sanity"),
-                )
+                val cur = subDetails?.getIntValue("current_sanity")
+                val max = subDetails?.getIntValue("max_sanity")
+                pendingFight = pendingFight.copy(sanity = cur, sanityMax = max)
+                if (cur != null && max != null) {
+                    lastSanitySnapshot = SanitySnapshot(cur, max)
+                }
             }
 
             "StageDrops" -> handleStageDrops(subDetails)
@@ -412,13 +426,13 @@ class SubTaskHandler(
             "RecruitSpecialTag" -> {
                 val tag = subDetails?.getString("tag") ?: ""
                 append("${str("RecruitingTips")}\n$tag", LogLevel.RARE)
-                eventNotifier.notifyRecruitSpecialTag(tag)
+                notificationCenter.notifyRecruitSpecialTag(tag)
             }
 
             "RecruitRobotTag" -> {
                 val tag = subDetails?.getString("tag") ?: ""
                 append("${str("RecruitingTips")}\n$tag", LogLevel.RECRUIT_ROBOT)
-                eventNotifier.notifyRecruitRobotTag(tag)
+                notificationCenter.notifyRecruitRobotTag(tag)
             }
 
             "RecruitResult" -> {
@@ -433,7 +447,7 @@ class SubTaskHandler(
                 )
                 toolboxResultCollector.onRecruitResult(subDetails)
                 if (level >= 5) {
-                    eventNotifier.notifyRecruitHighRarity(level)
+                    notificationCenter.notifyRecruitHighRarity(level)
                 }
             }
 
