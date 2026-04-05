@@ -5,6 +5,7 @@ import com.aliothmoon.maameow.data.model.FightConfig
 import com.aliothmoon.maameow.data.model.MallConfig
 import com.aliothmoon.maameow.data.model.TaskChainNode
 import com.aliothmoon.maameow.data.model.WakeUpConfig
+import com.aliothmoon.maameow.data.preferences.TaskChainState
 import com.aliothmoon.maameow.data.resource.ServerTimezone
 import com.aliothmoon.maameow.domain.models.MallCreditFightAvailability
 import com.aliothmoon.maameow.domain.models.resolveMallCreditFightAvailability
@@ -12,15 +13,14 @@ import com.aliothmoon.maameow.maa.task.MaaTaskParams
 import timber.log.Timber
 import java.time.DayOfWeek
 
-class AnalyzeTaskChainUseCase {
+class AnalyzeTaskChainUseCase(
+    private val taskChainState: TaskChainState,
+) {
     companion object {
         const val EMPTY_PARAMS_MESSAGE = "当前没有可执行的任务（可能被周计划过滤）"
     }
 
-    operator fun invoke(
-        chain: List<TaskChainNode>,
-        fallbackClientType: String? = null,
-    ): AnalyzeTaskChainResult {
+    operator fun invoke(chain: List<TaskChainNode>): AnalyzeTaskChainResult {
         val enabledNodes = chain.filter { it.enabled }.sortedBy { it.order }
         if (enabledNodes.isEmpty()) {
             return AnalyzeTaskChainResult.Blocked(
@@ -36,7 +36,7 @@ class AnalyzeTaskChainUseCase {
             )
         }
 
-        val clientType = resolveClientType(enabledNodes, fallbackClientType)
+        val clientType = taskChainState.getClientType()
         val creditFightAvailability = resolveMallCreditFightAvailability(enabledNodes)
         val serverDayOfWeek = ServerTimezone.getYjDayOfWeek(clientType)
 
@@ -77,15 +77,6 @@ class AnalyzeTaskChainUseCase {
             return "任务链中存在多个不同的客户端类型（${clientTypes.joinToString("、")}），请保持一致"
         }
         return null
-    }
-
-    private fun resolveClientType(
-        nodes: List<TaskChainNode>,
-        fallbackClientType: String?,
-    ): String {
-        return nodes.firstNotNullOfOrNull { (it.config as? WakeUpConfig)?.clientType }
-            ?: fallbackClientType
-            ?: "Official"
     }
 
     private fun isSkippedByWeeklySchedule(node: TaskChainNode, serverDayOfWeek: DayOfWeek): Boolean {

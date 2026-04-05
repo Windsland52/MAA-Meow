@@ -106,7 +106,7 @@ class UnifiedStateDispatcher(
 
         // 切换客户端时就要重新加载资源
         scope.launch {
-            chainState.firstConfigFlow<WakeUpConfig>()
+            chainState.firstEnabledConfigFlow<WakeUpConfig>()
                 .map { (it ?: WakeUpConfig()).clientType }
                 .distinctUntilChanged()
                 .drop(1)

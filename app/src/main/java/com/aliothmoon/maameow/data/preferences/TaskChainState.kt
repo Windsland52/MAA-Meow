@@ -202,6 +202,12 @@ class TaskChainState(private val context: Context) {
             .firstNotNullOfOrNull { it.config as? T }
     }
 
+    inline fun <reified T : TaskParamProvider> firstEnabledConfigFlow(): Flow<T?> {
+        return chain.map { nodes ->
+            nodes.filter { it.enabled }.firstNotNullOfOrNull { it.config as? T }
+        }.distinctUntilChanged()
+    }
+
     fun grantGameBatteryExemption(clientType: String) {
         val pkg = Packages[clientType] ?: return
         runCatching {
