@@ -167,7 +167,7 @@ class TaskChainHandler(
 
                 sb.append("\n")
                 sb.append(str("SanityRecovery",
-                    recoveryTime.format(DateTimeFormatter.ofPattern("HH:mm")),
+                    recoveryTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
                     remainStr
                 ))
                 // TODO: 延迟定时提醒（理智恢复前 6 分钟推送通知）
