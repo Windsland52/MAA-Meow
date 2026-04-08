@@ -5,6 +5,9 @@ import com.aliothmoon.maameow.data.model.AwardConfig
 import com.aliothmoon.maameow.data.model.FightConfig
 import com.aliothmoon.maameow.data.model.TaskChainNode
 import com.aliothmoon.maameow.data.model.WakeUpConfig
+import com.aliothmoon.maameow.data.preferences.TaskChainState
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -12,7 +15,10 @@ import org.junit.Test
 
 class AnalyzeTaskChainUseCaseTest {
 
-    private val useCase = AnalyzeTaskChainUseCase()
+    private val taskChainState = mockk<TaskChainState> {
+        every { getClientType() } returns "Official"
+    }
+    private val useCase = AnalyzeTaskChainUseCase(taskChainState)
 
     @Test
     fun returnsBlocked_whenNoTaskIsEnabled() {
