@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -263,16 +264,16 @@ private fun LogDetailView(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            items(
+            itemsIndexed(
                 items = entries,
-                key = { entry ->
+                key = { index, entry ->
                     when (entry) {
-                        is LogEntry.Header -> "header_${entry.startTime}"
-                        is LogEntry.Log -> "log_${entry.time}_${entry.content.hashCode()}"
-                        is LogEntry.Footer -> "footer_${entry.endTime}"
+                        is LogEntry.Header -> "header_${index}_${entry.startTime}"
+                        is LogEntry.Log -> "log_${index}"
+                        is LogEntry.Footer -> "footer_${index}_${entry.endTime}"
                     }
                 }
-            ) { entry ->
+            ) { _, entry ->
                 when (entry) {
                     is LogEntry.Header -> {
                         Column {
