@@ -7,16 +7,21 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -26,6 +31,9 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
@@ -34,9 +42,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimeInput
 import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,9 +64,12 @@ import androidx.navigation.NavController
 import com.aliothmoon.maameow.presentation.components.TopAppBar
 import com.aliothmoon.maameow.presentation.components.tip.ExpandableTipContent
 import com.aliothmoon.maameow.presentation.components.tip.ExpandableTipIcon
+import com.aliothmoon.maameow.schedule.model.ScheduleType
 import org.koin.androidx.compose.koinViewModel
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -150,84 +163,236 @@ fun ScheduleEditView(
             }
 
             item {
-                SectionHeader("执行日期")
+                SectionHeader("调度类型")
             }
             item {
-                FlowRow(
+                SingleChoiceSegmentedButtonRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 16.dp)
                 ) {
-                    val chipColors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                    val allSelected = DayOfWeek.entries.all { it in state.daysOfWeek }
-                    FilterChip(
-                        selected = allSelected,
-                        onClick = { viewModel.onToggleAllDays() },
-                        label = { Text("每天") },
-                        colors = chipColors
-                    )
-                    DayOfWeek.entries.forEach { day ->
-                        FilterChip(
-                            selected = day in state.daysOfWeek,
-                            onClick = { viewModel.onToggleDay(day) },
-                            label = { Text(dayDisplayName(day)) },
-                            colors = chipColors
-                        )
+                    ScheduleType.entries.forEachIndexed { index, type ->
+                        SegmentedButton(
+                            selected = state.scheduleType == type,
+                            onClick = { viewModel.onScheduleTypeChanged(type) },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = ScheduleType.entries.size,
+                                baseShape = RoundedCornerShape(4.dp)
+                            )
+                        ) {
+                            Text(
+                                when (type) {
+                                    ScheduleType.FIXED_TIME -> "固定时间"
+                                    ScheduleType.INTERVAL -> "间隔执行"
+                                }
+                            )
+                        }
                     }
                 }
             }
 
-            item {
-                SectionHeader("执行时间")
-            }
-            item {
-                val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-                FlowRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    state.executionTimes.forEach { time ->
-                        InputChip(
-                            selected = false,
-                            onClick = {
-                                editingTime = time
-                                showTimePicker = true
-                            },
-                            label = { Text(time.format(timeFormatter)) },
-                            trailingIcon = {
-                                IconButton(
-                                    onClick = { viewModel.onRemoveTime(time) },
-                                    modifier = Modifier.size(18.dp)
-                                ) {
+            when (state.scheduleType) {
+                ScheduleType.FIXED_TIME -> {
+                    item {
+                        SectionHeader("执行日期")
+                    }
+                    item {
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val chipColors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                            val allSelected = DayOfWeek.entries.all { it in state.daysOfWeek }
+                            FilterChip(
+                                selected = allSelected,
+                                onClick = { viewModel.onToggleAllDays() },
+                                label = { Text("每天") },
+                                colors = chipColors
+                            )
+                            DayOfWeek.entries.forEach { day ->
+                                FilterChip(
+                                    selected = day in state.daysOfWeek,
+                                    onClick = { viewModel.onToggleDay(day) },
+                                    label = { Text(dayDisplayName(day)) },
+                                    colors = chipColors
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        SectionHeader("执行时间")
+                    }
+                    item {
+                        val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+                        FlowRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            state.executionTimes.forEach { time ->
+                                InputChip(
+                                    selected = false,
+                                    onClick = {
+                                        editingTime = time
+                                        showTimePicker = true
+                                    },
+                                    label = { Text(time.format(timeFormatter)) },
+                                    trailingIcon = {
+                                        IconButton(
+                                            onClick = { viewModel.onRemoveTime(time) },
+                                            modifier = Modifier.size(18.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "删除",
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+                                )
+                            }
+                            AssistChip(
+                                onClick = {
+                                    editingTime = null
+                                    showTimePicker = true
+                                },
+                                label = { Text("添加时间") },
+                                leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "删除",
-                                        modifier = Modifier.size(14.dp)
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
                                     )
+                                }
+                            )
+                        }
+                    }
+                }
+
+                ScheduleType.INTERVAL -> {
+                    item {
+                        SectionHeader("开始时间")
+                    }
+                    item {
+                        var showDatePicker by remember { mutableStateOf(false) }
+                        var showStartTimePicker by remember { mutableStateOf(false) }
+                        // 暂存选中的日期，等时间也选完后一起写入
+                        var pendingDateMs by remember { mutableStateOf<Long?>(null) }
+
+                        val displayText = state.startTimeMs?.let { ms ->
+                            val zdt = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault())
+                            zdt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+                        } ?: "点击选择"
+
+                        OutlinedTextField(
+                            value = displayText,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("首次执行时间") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }.also { source ->
+                                LaunchedEffect(source) {
+                                    source.interactions.collect { interaction ->
+                                        if (interaction is androidx.compose.foundation.interaction.PressInteraction.Release) {
+                                            showDatePicker = true
+                                        }
+                                    }
                                 }
                             }
                         )
-                    }
-                    AssistChip(
-                        onClick = {
-                            editingTime = null
-                            showTimePicker = true
-                        },
-                        label = { Text("添加时间") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+
+                        if (showDatePicker) {
+                            val datePickerState = rememberDatePickerState(
+                                initialSelectedDateMillis = state.startTimeMs
+                                    ?: System.currentTimeMillis()
+                            )
+                            DatePickerDialog(
+                                onDismissRequest = { showDatePicker = false },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        pendingDateMs = datePickerState.selectedDateMillis
+                                        showDatePicker = false
+                                        showStartTimePicker = true
+                                    }) { Text("下一步") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showDatePicker = false }) { Text("取消") }
+                                }
+                            ) {
+                                DatePicker(state = datePickerState)
+                            }
+                        }
+
+                        if (showStartTimePicker) {
+                            val existingTime = state.startTimeMs?.let { ms ->
+                                Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalTime()
+                            }
+                            TimePickerDialog(
+                                initialTime = existingTime,
+                                onDismiss = { showStartTimePicker = false },
+                                onConfirm = { time ->
+                                    val dateMs = pendingDateMs ?: return@TimePickerDialog
+                                    val date = Instant.ofEpochMilli(dateMs)
+                                        .atZone(ZoneId.of("UTC"))
+                                        .toLocalDate()
+                                    val combined = date.atTime(time)
+                                        .atZone(ZoneId.systemDefault())
+                                        .toInstant()
+                                        .toEpochMilli()
+                                    viewModel.onStartTimeChanged(combined)
+                                    showStartTimePicker = false
+                                }
                             )
                         }
-                    )
+                    }
+
+                    item {
+                        SectionHeader("执行间隔")
+                    }
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = if (state.intervalDays > 0) state.intervalDays.toString() else "",
+                                onValueChange = { viewModel.onIntervalDaysChanged(it.toIntOrNull() ?: 0) },
+                                label = { Text("天") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.width(80.dp)
+                            )
+                            OutlinedTextField(
+                                value = if (state.intervalHours > 0) state.intervalHours.toString() else "",
+                                onValueChange = { viewModel.onIntervalHoursChanged(it.toIntOrNull() ?: 0) },
+                                label = { Text("小时") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.width(80.dp)
+                            )
+                            val totalMinutes = state.intervalDays * 24 * 60 + state.intervalHours * 60
+                            if (totalMinutes > 0) {
+                                Text(
+                                    text = "= ${totalMinutes / 60} 小时",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

@@ -10,6 +10,7 @@ import com.aliothmoon.maameow.data.model.TaskProfile
 import com.aliothmoon.maameow.data.preferences.TaskChainState
 import com.aliothmoon.maameow.schedule.data.ScheduleStrategyRepository
 import com.aliothmoon.maameow.schedule.model.ScheduleStrategy
+import com.aliothmoon.maameow.schedule.model.ScheduleType
 import com.aliothmoon.maameow.schedule.service.ScheduleAlarmManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,8 +27,15 @@ data class ScheduleEditUiState(
     val isNew: Boolean = true,
     val strategyId: String? = null,
     val name: String = "",
+    val scheduleType: ScheduleType = ScheduleType.FIXED_TIME,
+    // FIXED_TIME
     val daysOfWeek: Set<DayOfWeek> = emptySet(),
     val executionTimes: List<LocalTime> = emptyList(),
+    // INTERVAL
+    val startTimeMs: Long? = null,
+    val intervalDays: Int = 0,
+    val intervalHours: Int = 0,
+    // 通用
     val profiles: List<TaskProfile> = emptyList(),
     val selectedProfileId: String? = null,
     val forceStart: Boolean = false,
@@ -65,12 +73,17 @@ class ScheduleEditViewModel(
                 if (strategy != null) {
                     strategyId = id
                     existingStrategy = strategy
+                    val totalMinutes = strategy.intervalMinutes ?: 0
                     _state.value = ScheduleEditUiState(
                         isNew = false,
                         strategyId = id,
                         name = strategy.name,
+                        scheduleType = strategy.scheduleType,
                         daysOfWeek = strategy.daysOfWeek,
                         executionTimes = strategy.executionTimes,
+                        startTimeMs = strategy.startTimeMs,
+                        intervalDays = totalMinutes / (24 * 60),
+                        intervalHours = (totalMinutes % (24 * 60)) / 60,
                         profiles = profiles,
                         selectedProfileId = strategy.profileId,
                         forceStart = strategy.forceStart,
@@ -91,6 +104,22 @@ class ScheduleEditViewModel(
 
     fun onNameChanged(name: String) {
         _state.update { it.copy(name = name) }
+    }
+
+    fun onScheduleTypeChanged(type: ScheduleType) {
+        _state.update { it.copy(scheduleType = type) }
+    }
+
+    fun onStartTimeChanged(epochMs: Long) {
+        _state.update { it.copy(startTimeMs = epochMs) }
+    }
+
+    fun onIntervalDaysChanged(days: Int) {
+        _state.update { it.copy(intervalDays = days.coerceAtLeast(0)) }
+    }
+
+    fun onIntervalHoursChanged(hours: Int) {
+        _state.update { it.copy(intervalHours = hours.coerceIn(0, 23)) }
     }
 
     fun onSelectProfile(profileId: String) {
@@ -149,35 +178,60 @@ class ScheduleEditViewModel(
             _state.update { it.copy(errorMessage = "请输入策略名称") }
             return
         }
-        if (current.daysOfWeek.isEmpty()) {
-            _state.update { it.copy(errorMessage = "请选择执行日期") }
-            return
-        }
-        if (current.executionTimes.isEmpty()) {
-            _state.update { it.copy(errorMessage = "请添加执行时间") }
-            return
-        }
         if (current.selectedProfileId == null) {
             _state.update { it.copy(errorMessage = "请选择任务配置") }
             return
+        }
+        when (current.scheduleType) {
+            ScheduleType.FIXED_TIME -> {
+                if (current.daysOfWeek.isEmpty()) {
+                    _state.update { it.copy(errorMessage = "请选择执行日期") }
+                    return
+                }
+                if (current.executionTimes.isEmpty()) {
+                    _state.update { it.copy(errorMessage = "请添加执行时间") }
+                    return
+                }
+            }
+            ScheduleType.INTERVAL -> {
+                if (current.startTimeMs == null) {
+                    _state.update { it.copy(errorMessage = "请选择开始时间") }
+                    return
+                }
+                val totalMinutes = current.intervalDays * 24 * 60 + current.intervalHours * 60
+                if (totalMinutes < 60) {
+                    _state.update { it.copy(errorMessage = "执行间隔不能小于 1 小时") }
+                    return
+                }
+            }
         }
 
         _state.update { it.copy(isSaving = true, errorMessage = null) }
 
         viewModelScope.launch {
             runCatching {
+                val intervalMinutes = if (current.scheduleType == ScheduleType.INTERVAL) {
+                    current.intervalDays * 24 * 60 + current.intervalHours * 60
+                } else null
+
                 val strategy = existingStrategy?.copy(
                     name = current.name.trim(),
+                    scheduleType = current.scheduleType,
                     daysOfWeek = current.daysOfWeek,
                     executionTimes = current.executionTimes,
+                    startTimeMs = current.startTimeMs,
+                    intervalMinutes = intervalMinutes,
                     profileId = current.selectedProfileId,
                     forceStart = current.forceStart,
                 ) ?: ScheduleStrategy(
                     id = strategyId ?: UUID.randomUUID().toString(),
                     name = current.name.trim(),
                     enabled = true,
+                    scheduleType = current.scheduleType,
                     daysOfWeek = current.daysOfWeek,
                     executionTimes = current.executionTimes,
+                    startTimeMs = current.startTimeMs,
+                    intervalMinutes = intervalMinutes,
                     profileId = current.selectedProfileId,
                     forceStart = current.forceStart,
                 )

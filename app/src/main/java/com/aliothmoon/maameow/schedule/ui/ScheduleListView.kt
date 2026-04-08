@@ -49,8 +49,11 @@ import com.aliothmoon.maameow.constant.Routes
 import com.aliothmoon.maameow.schedule.model.ExecutionResult
 import com.aliothmoon.maameow.schedule.service.AutoStartHelper
 import com.aliothmoon.maameow.schedule.model.ScheduleStrategy
+import com.aliothmoon.maameow.schedule.model.ScheduleType
 import org.koin.androidx.compose.koinViewModel
 import java.time.DayOfWeek
+import java.time.Instant
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import androidx.core.content.edit
 
@@ -280,11 +283,30 @@ private fun scheduleDayDisplayName(day: DayOfWeek): String = when (day) {
 }
 
 private fun scheduleStrategyScheduleSummary(strategy: ScheduleStrategy): String {
-    val days = strategy.daysOfWeek.sorted().joinToString(" ") { "周${scheduleDayDisplayName(it)}" }
-    val times = strategy.executionTimes.joinToString(" ") {
-        it.format(DateTimeFormatter.ofPattern("HH:mm"))
+    return when (strategy.scheduleType) {
+        ScheduleType.FIXED_TIME -> {
+            val days = strategy.daysOfWeek.sorted().joinToString(" ") { "周${scheduleDayDisplayName(it)}" }
+            val times = strategy.executionTimes.joinToString(" ") {
+                it.format(DateTimeFormatter.ofPattern("HH:mm"))
+            }
+            "$days $times"
+        }
+        ScheduleType.INTERVAL -> {
+            val totalMinutes = strategy.intervalMinutes ?: 0
+            val days = totalMinutes / (24 * 60)
+            val hours = (totalMinutes % (24 * 60)) / 60
+            val intervalText = when {
+                days > 0 && hours > 0 -> "每 ${days} 天 ${hours} 小时"
+                days > 0 -> "每 ${days} 天"
+                else -> "每 ${hours} 小时"
+            }
+            val startText = strategy.startTimeMs?.let { ms ->
+                val zdt = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault())
+                "从 ${zdt.format(DateTimeFormatter.ofPattern("MM-dd HH:mm"))} 起"
+            } ?: ""
+            "$intervalText $startText"
+        }
     }
-    return "$days $times"
 }
 
 private fun formatExecutionResult(result: ExecutionResult, message: String?): String {
